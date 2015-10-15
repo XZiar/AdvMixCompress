@@ -1,0 +1,515 @@
+#include "rely.h"
+#include "basic.h"
+#include "checker.h"
+#include "buffer.h"
+#include "bitfile.h"
+
+namespace acp
+{
+	struct BlockInfo
+	{
+		uint16_t index[256];
+		uint16_t jump[1024];
+	};
+	
+	_CRT_ALIGN(16) static uint8_t *buffer;
+	_CRT_ALIGN(16) static BlockInfo *BlkInfo;//
+	_CRT_ALIGN(16) int16_t Buf_Blk_start,//start block of buf
+		Buf_Blk_cur,//current block of buf
+		Buf_Blk_max;//max block num of buf
+	_CRT_ALIGN(16) uint32_t Buf_Pos_cur,//len of buf
+		Buf_Pos_max;//max size of buf pool
+	static uint64_t judgenum_all[65];//judge num
+
+	mutex mtx_Buf_Use;
+	static mutex mtx_FindThread_Wait,//
+		mtx_CtrlThread_Wait;//
+
+	condition_variable cv_Buf_Use,
+		cv_Buf_Ready;
+	static condition_variable cv_FindThread_Wait,//cv to wake up find thread
+		cv_CtrlThread_Wait;//cv to wake up ctrl thread
+	static atomic_int64_t a_FT_state(0);
+	static atomic_int8_t //a_ThreadCount(0),
+		a_FindLen(0);
+	static atomic_int32_t a_LoopCount(0);
+
+	static FILE *ttf;
+	static void dump_buf()
+	{
+		FILE * tmpf = _wfopen(L"dump_buf.data", L"wb");
+		fwrite(buffer, 1, Buf_Pos_cur, tmpf);
+		fclose(tmpf);
+	}
+
+	void Buffer_init(uint16_t blkcount)
+	{
+#if DEBUG
+		ttf = _wfopen(L"out_buf.data", L"wb");
+		fclose(ttf);
+#endif
+		uint32_t bufcount = blkcount * 1024;
+		Buf_Pos_max = bufcount * 3;
+		buffer = new uint8_t[Buf_Pos_max];
+		BlkInfo = new BlockInfo[blkcount * 3];
+
+		Buf_Blk_cur = Buf_Blk_start = 0;
+		Buf_Blk_max = blkcount;
+
+		uint8_t judgetmp[8];
+		memset(judgetmp, 0, 8);
+		memset(judgenum_all, 0xff, 520);
+		for (int a = 0; a < 8; a++)
+		{
+			judgenum_all[a] = *(uint64_t*)judgetmp;
+			judgetmp[a] = 0xff;
+		}
+		return;
+	}
+
+	void Buffer_exit()
+	{
+#if DEBUG
+		ttf = _wfopen(L"out_buf.data", L"ab");
+		fwrite(buffer, 1, Buf_Pos_cur, ttf);
+		fclose(ttf);
+#endif
+		delete[] buffer;
+		delete[] BlkInfo;
+		return;
+	}
+
+	static inline void BufClean()
+	{
+#if DEBUG
+		ttf = _wfopen(L"out_buf.data", L"ab");
+		fwrite(buffer, 1, (Buf_Blk_max * 3 - Buf_Blk_start) * 1024, ttf);
+		fclose(ttf);
+#endif
+		void* src = buffer + Buf_Blk_start * 1024;
+		memcpy(buffer, src, (Buf_Blk_max * 3 - Buf_Blk_start) * 1024);
+
+		src = &BlkInfo[Buf_Blk_start];
+		uint32_t len = sizeof(BlockInfo)*Buf_Blk_max;
+		memcpy(&BlkInfo[0], src, len);
+		Buf_Blk_cur -= Buf_Blk_start;
+		Buf_Pos_cur -= Buf_Blk_start * 1024;
+		Buf_Blk_start = 0;
+		return;
+	}
+
+	static inline void BufPre(BlockInfo &bufinfo)
+	{
+		memset(bufinfo.index, 0x7f, 512);
+		//memset(bufinfo.jump, 0x7f, 2048);
+		return;
+	}
+
+	void BufAdd(uint16_t len, uint8_t data[])
+	{
+		_mm_prefetch((char*)data, _MM_HINT_NTA);
+		if (Buf_Pos_cur + len > Buf_Pos_max)//no enough space
+			BufClean();
+		uint8_t *objaddr = buffer + Buf_Pos_cur;
+		memcpy(objaddr, data, len);
+		uint16_t left_len = 1024 - (Buf_Pos_cur - Buf_Blk_cur * 1024),
+			right_len = 0;
+		if (len > left_len)
+		{//full of a block
+			right_len = len - left_len;
+		}
+		else
+		{//not full
+			left_len = len;
+		}
+
+		//fill this block
+		for (auto a = Buf_Pos_cur & 0x3ff; left_len--; ++a)
+		{
+			uint8_t tmpdat = buffer[Buf_Pos_cur++];
+			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].index[tmpdat];
+			BlkInfo[Buf_Blk_cur].index[tmpdat] = a;
+		}
+
+		//fill next block
+		if (right_len > 0)
+		{
+			BufPre(BlkInfo[++Buf_Blk_cur]);
+			if (Buf_Blk_cur - Buf_Blk_start >= Buf_Blk_max)
+				++Buf_Blk_start;
+		}
+		for (auto a = 0; a < right_len; ++a)
+		{
+			uint8_t tmpdat = buffer[Buf_Pos_cur++];
+			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].index[tmpdat];
+			BlkInfo[Buf_Blk_cur].index[tmpdat] = a;
+		}
+
+		return;
+	}
+
+	uint8_t BufGet(uint32_t offset, uint8_t len, uint8_t data[])
+	{
+		//if (offset > Buf_Pos_cur - Buf_Blk_start * 1024)
+		if (offset > Buf_Pos_cur)
+			return 0x1;
+		if (len > 64)
+			return 0x2;
+		memcpy(data, buffer + (Buf_Pos_cur - offset), len);
+		return 0x0;
+	}
+
+	static void FindThread_x64(uint8_t tNum, int8_t tID, uint8_t &op, ChkItem *inchk, BufferReport &bufrep)
+	{
+		_CRT_ALIGN(16) ChkItem chkdata;
+		BlockInfo *blkinf;
+		uint64_t *p_buf_cur,//current pos of dic_data
+			*p_chk_cur;//current pos of chker_data
+		char *p_prefetch;//for prefetch
+		int16_t blk_num = 0;//current searching block num
+		int32_t findpos,
+			bufspos;//real start pos of buf in the whole pool
+		int32_t c_thr_left,//left border for this cycle
+			c_thr_right;//right border for this cycle
+		uint8_t chkleft;//left count of checker
+		uint8_t &chk_minval = chkdata.minval,
+			&chk_minpos = chkdata.minpos;
+		uint16_t objpos,
+			maxpos;
+		_CRT_ALIGN(16) uint64_t judgenum[65];//judge num
+
+		//init
+		const uint64_t mask = 0x1Ui64 << tID;
+		unique_lock <mutex> lck(mtx_FindThread_Wait);
+#if DEBUG_Thr
+		wchar_t msg[6][24];
+
+		//prepare msg
+		swprintf(msg[0], L"Buf_FThr %2d creat\n", tID);
+		swprintf(msg[1], L"Buf_FThr %2d init\n", tID);
+		swprintf(msg[2], L"Buf_FThr %2d lock\n", tID);
+		swprintf(msg[3], L"Buf_FThr %2d unlock\n", tID);
+		swprintf(msg[4], L"BFT %2d noti BC0\n", tID);
+		swprintf(msg[5], L"BFT %2d wa<- BC0\n", tID);
+
+		db_log(msg[0]);
+#endif
+		a_FT_state -= mask;
+#if DEBUG_Thr
+		db_log(msg[4]);
+#endif
+		cv_CtrlThread_Wait.notify_all();
+
+		cv_FindThread_Wait.wait(lck, [=] {return a_FT_state & mask; });
+#if DEBUG_Thr
+		db_log(msg[5]);
+#endif
+		lck.unlock();
+#if DEBUG_Thr
+		db_log(msg[3]);
+#endif
+		memcpy(judgenum, judgenum_all, 520);
+#if DEBUG_Thr
+		db_log(msg[1]);
+#endif
+		//prefetch chkdata
+		_mm_prefetch((char*)chkdata.data, _MM_HINT_T0);//data
+		_mm_prefetch((char*)chkdata.data + 64, _MM_HINT_T0);//propety
+
+		//prefetch judge
+		_mm_prefetch((char*)judgenum, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 64, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 128, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 192, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 256, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 320, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 384, _MM_HINT_T0);
+		_mm_prefetch((char*)judgenum + 448, _MM_HINT_T0);
+
+		//main part
+		auto func_preborder = [&]
+		{//go to choose next block
+			//only the first block maybe size limit so dont need to worry about that
+			//drop this work to other part
+			blkinf = &BlkInfo[blk_num];
+			//prefetch
+			p_prefetch = (char *)&blkinf->index[chk_minval];//pos of the index of next DictItem
+			_mm_prefetch(p_prefetch, _MM_HINT_T0);
+
+			//prepare border
+			c_thr_left = blk_num * 1024;
+			c_thr_right = c_thr_left + 1023;
+			if (c_thr_right > Buf_Pos_cur)
+				c_thr_right = Buf_Pos_cur;
+			c_thr_right -= chkdata.curlen - chk_minpos;
+			maxpos = c_thr_right & 0x3ff;
+		};
+		auto func_fetch = [&]
+		{
+			//prefetch buffer data
+			for (auto a = c_thr_left; a < c_thr_right; a += 64)
+				_mm_prefetch((char*)buffer + a, _MM_HINT_T0);
+			//prefetch jump data
+			for (auto a = 0; a < 2048; a += 64)
+				_mm_prefetch((char*)BlkInfo[blk_num].jump + a, _MM_HINT_T0);
+		};
+		while (true)//run one cycle at a FindInBuf
+		{
+			//refresh chker
+			memcpy(&chkdata, inchk, sizeof(ChkItem));
+			blk_num = Buf_Blk_cur - tID;
+
+			blkinf = &BlkInfo[blk_num];
+
+			//prefetch current
+			p_prefetch = (char *)&blkinf->index[chk_minval];//pos of the index of the DictItem
+			_mm_prefetch(p_prefetch, _MM_HINT_T0);
+
+			//prepare border
+			c_thr_left = blk_num * 1024;
+			c_thr_right = c_thr_left + 1023;
+			if (c_thr_right > Buf_Pos_cur)
+				c_thr_right = Buf_Pos_cur;
+			c_thr_right -= chkdata.curlen - chk_minpos;
+			maxpos = c_thr_right & 0x3ff;
+
+			for (; blk_num >= Buf_Blk_start;)//loop when finish a BufBlock,fail OR suc(add chk)
+			{
+				//func_fetch();
+				findpos = 0x7fffffff;
+				if (c_thr_right < c_thr_left)//no enough space in this block
+				{
+					blk_num -= tNum;
+					if (blk_num < Buf_Blk_start)//out of start
+						break;
+					func_preborder();
+
+					continue;
+				}
+				
+				objpos = blkinf->index[chk_minval];//object-bit pos in the buf block
+				while (objpos > maxpos && objpos != 0x7f7f)
+					objpos = blkinf->jump[objpos];
+				if (objpos == 0x7f7f)//no matching word
+				{
+					blk_num -= tNum;
+					if (blk_num < Buf_Blk_start)//out of start
+						break;
+					func_preborder();
+
+					continue;
+				}
+
+				bufspos = c_thr_left + objpos - chk_minpos;//get real start pos
+				if (bufspos < 0)//beyond buffer pool
+				{//TODO:allow little more data
+					blk_num -= tNum;
+					if (blk_num < Buf_Blk_start)//out of start
+						break;
+					func_preborder();
+
+					continue;
+				}
+
+				p_buf_cur = (uint64_t*)(buffer + bufspos);
+				p_chk_cur = (uint64_t*)chkdata.data;
+				chkleft = chkdata.curlen;
+
+				while (true)
+				{
+					//judge part
+					if (((*p_buf_cur) ^ (*p_chk_cur)) & judgenum[chkleft])
+					{//not match
+						objpos = blkinf->jump[objpos];//get next pos
+						bufspos = c_thr_left + objpos - chk_minpos;//get real start pos
+						if (objpos == 0x7f7f || bufspos < 0)//outside the block OR beyond buffer pool
+							break;
+
+						p_buf_cur = (uint64_t*)(buffer + bufspos);
+						//prefetch next
+						_mm_prefetch((char*)p_buf_cur, _MM_HINT_NTA);//-data
+						p_prefetch = (char *)&blkinf->jump[bufspos];//pos of next jump
+						_mm_prefetch(p_prefetch, _MM_HINT_NTA);//-jump
+
+						if (chkleft != chkdata.curlen)
+						{//in a match, reset chk pos
+							p_chk_cur = (uint64_t*)chkdata.data;
+							chkleft = chkdata.curlen;
+						}
+
+						continue;
+					}//end of not match
+					else
+					{//match from the beginning
+						if (chkleft < 9)
+						{//match suc
+							findpos = bufspos;
+							break;
+						}
+						else
+						{//add more match
+							++p_buf_cur, ++p_chk_cur;
+							chkleft -= 8;
+							continue;
+						}
+					}//end of match
+
+				}
+				//end of dead loop to keep searching in a dict
+
+				if (findpos != 0x7fffffff)//finally find it, update bufrep
+				{
+					
+					bufrep.p_b = buffer;
+					bufrep.s_b = Buf_Pos_cur;
+					bufrep.isFind = 0xff;
+					bufrep.objlen = chkdata.curlen;
+					bufrep.addr = buffer + findpos;
+					//bufrep.addr = buffer + c_thr_left + findpos;
+					bufrep.offset = Buf_Pos_cur - findpos;
+					if (Chk_inc(chkdata) == 0)
+						break;//chkdata is full used
+
+					c_thr_right = c_thr_left + 1023;
+					if (c_thr_right > Buf_Pos_cur)
+						c_thr_right = Buf_Pos_cur;
+					c_thr_right -= chkdata.curlen - chk_minpos;
+					maxpos = c_thr_right & 0x3ff;
+				}
+				else
+				{
+					blk_num -= tNum;
+					if (blk_num < Buf_Blk_start)//out of start
+						break;
+					func_preborder();
+
+					continue;
+				}
+			}
+			//end of seaching the whole diction
+
+			//send back signal to the control thread
+			lck.lock();
+#if DEBUG_Thr
+			db_log(msg[2]);
+#endif
+			a_FT_state -= mask;
+			//if (bufrep.isFind && a_FindLen < bufrep.objlen)
+				//a_FindLen = bufrep.objlen;
+#if DEBUG_Thr
+			db_log(msg[4]);
+#endif
+			cv_CtrlThread_Wait.notify_all();
+			cv_FindThread_Wait.wait(lck, [=] {return a_FT_state & mask; });
+#if DEBUG_Thr
+			db_log(msg[5]);
+#endif
+			//waked up from ctrl thread
+			lck.unlock();
+#if DEBUG_Thr
+			db_log(msg[3]);
+#endif
+			if (op == 0xff)
+				break;//break to stop the thread
+		}
+		a_FT_state -= mask;
+		cv_CtrlThread_Wait.notify_all();
+#if DEBUG_Thr
+		db_log(msg[4]);
+#endif
+		return;
+	}
+
+	void FindInBuffer(const int8_t tCount, BufferOP & op, BufferReport drep[], ChkItem & chkdata)
+	{
+		thread t_find[64];
+		uint8_t ftop = 0x0;//op of FindThread
+		const uint64_t mask = 0xffffffffffffffffUi64 << tCount;
+
+		unique_lock <mutex> lck_BufUse(mtx_Buf_Use);
+		unique_lock <mutex> lck_FindThread(mtx_FindThread_Wait);
+		//init
+		BufPre(BlkInfo[0]);
+		for (int8_t a = 0; a < tCount; a++)
+			t_find[a] = thread(FindThread_x64, tCount, a, ref(ftop), &chkdata, ref(drep[a]));
+		a_FT_state = 0xffffffffffffffffUi64;
+
+		for (int8_t a = 0; a < tCount; a++)
+			t_find[a].detach();
+
+		//wait for init of findthread
+		cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
+		//FindThread init finish
+#if DEBUG_Thr
+		wchar_t db_str[120];
+		db_log(L"Init ok %d Buf_Fthr.\n");
+#endif
+		//notify upper thread
+		op.op = 0;
+		cv_Buf_Ready.notify_all();
+#if DEBUG_Thr
+		db_log(L"BC0 noti M**\n");
+#endif
+		//give up the mutex to wake up upper thread
+		cv_Buf_Use.wait(lck_BufUse, [&] {return op.op != 0; });
+#if DEBUG_Thr
+		db_log(L"BC0 wa<- M**\n");
+#endif
+		//start into the main part
+		while (true)
+		{
+			for (int8_t a = 0; a < tCount; a++)
+				drep[a].isFind = 0;
+			a_FindLen = 0;
+			ftop = 0;
+			a_FT_state = 0xffffffffffffffffUi64;
+			//wake up all find-thread
+			cv_FindThread_Wait.notify_all();
+#if DEBUG_Thr
+			db_log(L"BC0 noti BTa\n");
+#endif
+			cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
+#if DEBUG_Thr
+			db_log(L"BC0 wa<- BTa\n");
+#endif
+			//waked up from find-thread
+
+			op.op = 0x7f;
+			cv_Buf_Ready.notify_all();
+#if DEBUG_Thr
+			db_log(L"BC0 noti M**\n");
+#endif
+			cv_Buf_Use.wait(lck_BufUse, [&] {return op.op != 0X7f; });
+#if DEBUG_Thr
+			db_log(L"BC0 wa<- M**\n");
+#endif
+			//waked up from upper-thread
+
+			if (op.op == 0xff)//find finish
+				break;
+			//add buf
+			BufAdd(op.len, op.data);
+		}
+		//end of finding
+
+		ftop = 0xff;
+		a_FT_state = 0xffffffffffffffffUi64;
+		cv_FindThread_Wait.notify_all();//wake up all find-thread
+#if DEBUG_Thr	
+		db_log(L"BC0 noti BTa\n");
+#endif
+		cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
+#if DEBUG_Thr
+		db_log(L"BC0 noti BTa\n");
+#endif
+		//all find-thread finish
+		op.op = 0x7f;
+		cv_Buf_Ready.notify_all();
+#if DEBUG_Thr
+		db_log(L"BC0 noti M**\n");
+#endif
+		lck_BufUse.unlock();
+		return;
+	}
+
+}
