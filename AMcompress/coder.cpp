@@ -295,7 +295,7 @@ namespace acp
 
 	static inline void putEnd(bitWfile &out)
 	{
-		out.putBits(3, 0x2);
+		out.putBits(7, 0x1);
 #if DEBUG
 		db_com(L"END\n", false);
 #endif
