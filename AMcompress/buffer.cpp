@@ -264,12 +264,7 @@ namespace acp
 			_mm_prefetch((char*)blkinf->jump + 64, _MM_HINT_T0);
 
 			//prepare border
-			if(blk_num != Buf_Blk_cur)
-				c_thr_right = c_thr_left + 127;
-			else
-				c_thr_right = Buf_Pos_cur;
-			c_thr_right -= chkdata.curlen - chk_minpos;
-			maxpos = c_thr_right & 0x7f;
+			maxpos = 127 + chk_minpos - chkdata.curlen;
 		};
 		
 		while (true)//run one cycle at a FindInBuf
@@ -286,18 +281,19 @@ namespace acp
 
 			//prepare border
 			c_thr_left = blk_num * 128;
-			c_thr_right = c_thr_left + 127;
-			if (c_thr_right > Buf_Pos_cur)
-				c_thr_right = Buf_Pos_cur;
-			c_thr_right -= chkdata.curlen - chk_minpos;
-			if (c_thr_right < c_thr_left)//no enough space in this block
+			
+			if (blk_num == Buf_Blk_cur)
 			{
-				blk_num -= tNum;
-				if (blk_num >= Buf_Blk_start)//out of start
-					func_preborder();
+				maxpos = (Buf_Pos_cur & 0x7f) + chk_minpos - chkdata.curlen;
+				if (maxpos < 0)//no enough space in this block
+				{
+					blk_num -= tNum;
+					if (blk_num >= Buf_Blk_start)//out of start
+						func_preborder();
+				}
 			}
 			else
-				maxpos = c_thr_right & 0x7f;
+				maxpos = 127 + chk_minpos - chkdata.curlen;
 
 			for (; blk_num >= Buf_Blk_start;)//loop when finish a BufBlock,fail OR suc(add chk)
 			{
@@ -387,18 +383,18 @@ namespace acp
 					if (Chk_inc(chkdata) == 0)
 						break;//chkdata is full used
 
-					c_thr_right = c_thr_left + 127;
-					if (c_thr_right > Buf_Pos_cur)
-						c_thr_right = Buf_Pos_cur;
-					c_thr_right -= chkdata.curlen - chk_minpos;
-					if (c_thr_right < c_thr_left)//no enough space in this block
+					if (blk_num == Buf_Blk_cur)
 					{
-						blk_num -= tNum;
-						if (blk_num >= Buf_Blk_start)//out of start
-							func_preborder();
+						maxpos = (Buf_Pos_cur & 0x7f) + chk_minpos - chkdata.curlen;
+						if (maxpos < 0)//no enough space in this block
+						{
+							blk_num -= tNum;
+							if (blk_num >= Buf_Blk_start)//out of start
+								func_preborder();
+						}
 					}
 					else
-						maxpos = c_thr_right & 0x7f;
+						maxpos = 127 + chk_minpos - chkdata.curlen;
 				}
 				else
 				{
