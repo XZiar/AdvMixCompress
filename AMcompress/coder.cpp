@@ -514,12 +514,12 @@ namespace acp
 		//end of reading type
 		switch (op.op)
 		{
-#if DEBUG
 		case 0x1://RAW
-			swprintf(db_str, L"RAW %s len=%d\n", type, op.len);
 			in.getChars(op.len, op.data);
-			break;
+#if DEBUG
+			swprintf(db_str, L"RAW %s len=%d\n", type, op.len);
 #endif
+			break;
 		case 0x2://dict
 			//judge align
 			{
