@@ -30,8 +30,12 @@
 #if defined(__GNUC__)
 	#include <x86intrin.h>
 	#define _MM_ALIGN16 _CRT_ALIGN(16)
+	#define malloc_align(size, align) memalign((align), (size))
+	#define free_align(ptr) free(ptr)
 #else
 	#include <intrin.h>
+	#define malloc_align(size, align) _aligned_malloc((size), (align))
+	#define free_align(ptr) _aligned_free(ptr)
 #endif
 
 #if DEBUG

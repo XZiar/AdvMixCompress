@@ -59,8 +59,10 @@ namespace acp
 
 	void Dict_init(uint16_t diccount)
 	{
-		Diction = new DictItem[diccount];
-		DictList = new DictInfo[diccount];
+		Diction = (DictItem*)malloc_align(sizeof(DictItem)*diccount, 64);
+		//Diction = new DictItem[diccount];
+		DictList = (DictInfo*)malloc_align(sizeof(DictInfo)*diccount, 64);
+		//DictList = new DictInfo[diccount];
 		DictSize_Max = diccount;
 		DictSize_Cur = 0;
 		isFirstFree = true;
@@ -82,8 +84,10 @@ namespace acp
 #if DEBUG
 		dumpdict();
 #endif
-		delete[] Diction;
-		delete[] DictList;
+		free_align(Diction);
+		//delete[] Diction;
+		free_align(DictList);
+		//delete[] DictList;
 		return;
 	}
 

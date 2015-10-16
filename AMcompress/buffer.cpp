@@ -6,7 +6,7 @@
 
 namespace acp
 {
-	struct BlockInfo
+	struct alignas(64) BlockInfo
 	{
 		uint8_t index[256];
 		uint8_t jump[128];
@@ -50,8 +50,11 @@ namespace acp
 #endif
 		uint32_t bufcount = blkcount * 128;
 		Buf_Pos_max = bufcount * 3;
-		buffer = new uint8_t[Buf_Pos_max];
-		BlkInfo = new BlockInfo[blkcount * 3];
+
+		buffer = (uint8_t*)malloc_align(sizeof(uint8_t)*Buf_Pos_max, 64);
+		//buffer = new uint8_t[Buf_Pos_max];
+		BlkInfo = (BlockInfo*)malloc_align(sizeof(BlockInfo)*blkcount * 3, 64);
+		//BlkInfo = new BlockInfo[blkcount * 3];
 
 		Buf_Blk_cur = Buf_Blk_start = 0;
 		Buf_Blk_max = blkcount;
@@ -74,8 +77,10 @@ namespace acp
 		fwrite(buffer, 1, Buf_Pos_cur, ttf);
 		fclose(ttf);
 #endif
-		delete[] buffer;
-		delete[] BlkInfo;
+		free_align(buffer);
+		//delete[] buffer;
+		free_align(BlkInfo);
+		//delete[] BlkInfo;
 		return;
 	}
 
