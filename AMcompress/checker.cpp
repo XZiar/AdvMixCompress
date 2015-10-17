@@ -17,13 +17,13 @@ namespace acp
 			chkdat.minpos = chkdat.curlen;
 			chkdat.minval = dat;
 			chkdat.minposD = chkdat.minpos;
-			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.minval >> 1);
+			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.data[chkdat.minposD - 2] >> 1) + chkdat.minval;
 			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		else if (chkdat.minval == dat)//may change
 		{
 			++chkdat.mincnt;
-			for (uint8_t a = chkdat.curlen; --a;)//skip offset 0
+			for (uint8_t a = chkdat.curlen; --a > 1;)//skip offset 0,1
 				if (chkdat.counts[chkdat.data[a]] < chkdat.mincnt)
 				{
 					chkdat.minpos = a;
@@ -32,7 +32,7 @@ namespace acp
 					break;
 				}
 			chkdat.minposD = chkdat.minpos;
-			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.minval >> 1);
+			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.data[chkdat.minposD - 2] >> 1) + chkdat.minval;
 			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		return ++chkdat.curlen;
@@ -73,16 +73,16 @@ namespace acp
 				chkdat.minpos = count;
 			}
 		}
-		if (chkdat.minpos == 0)
+		if (chkdat.minpos < 2)
 		{
-			chkdat.minposD = 1;
-			chkdat.minvalD = (uint16_t)(chkdat.data[1] >> 1) * (chkdat.minval >> 1);
+			chkdat.minposD = 3;
+			chkdat.minvalD = (uint16_t)(chkdat.data[1] >> 1) * (chkdat.minval >> 1) + chkdat.data[2];
 			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		else
 		{
 			chkdat.minposD = chkdat.minpos;
-			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.minval >> 1);
+			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.data[chkdat.minposD - 2] >> 1) + chkdat.minval;
 			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		
