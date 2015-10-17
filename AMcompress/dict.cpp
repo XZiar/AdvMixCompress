@@ -369,7 +369,7 @@ namespace acp
 					{//not match
 						objpos = dicdata->jump[objpos];//get next pos
 						dicspos = objpos - chk_minpos;//get real start pos
-						if (objpos == 0x7f || dicspos > maxpos)//no enough space to match
+						if (dicspos > maxpos)//no enough space to match
 							break;
 						p_dic_cur = (uint64_t*)(dicdata->data + dicspos);
 						if (chkleft != chkdata.curlen)
@@ -377,7 +377,7 @@ namespace acp
 							p_chk_cur = (uint64_t*)chkdata.data;
 							chkleft = chkdata.curlen;
 						}
-						//continue;
+						continue;
 					}//end of not match
 					else
 					{//match from the beginning
@@ -390,7 +390,7 @@ namespace acp
 						{//add more match
 							++p_dic_cur, ++p_chk_cur;
 							chkleft -= 8;
-							//continue;
+							continue;
 						}
 					}//end of match
 

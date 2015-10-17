@@ -12,7 +12,7 @@ namespace acp
 		uint8_t jump[128];
 	};
 	
-	_CRT_ALIGN(16) static uint8_t *buffer;
+	_CRT_ALIGN(16) static uint8_t *buffer, *rbuffer;
 	_CRT_ALIGN(16) static BlockInfo *BlkInfo;//
 	_CRT_ALIGN(16) int16_t Buf_Blk_start,//start block of buf
 		Buf_Blk_cur,//current block of buf
@@ -51,7 +51,9 @@ namespace acp
 		uint32_t bufcount = blkcount * 128;
 		Buf_Pos_max = bufcount * 3;
 
-		buffer = (uint8_t*)malloc_align(sizeof(uint8_t)*Buf_Pos_max, 64);
+		rbuffer = (uint8_t*)malloc_align(sizeof(uint8_t)*Buf_Pos_max + 64, 64);
+		memset(rbuffer, 0x0, 64);
+		buffer = rbuffer + 64;
 		//buffer = new uint8_t[Buf_Pos_max];
 		BlkInfo = (BlockInfo*)malloc_align(sizeof(BlockInfo)*blkcount * 3, 64);
 		//BlkInfo = new BlockInfo[blkcount * 3];
@@ -77,7 +79,7 @@ namespace acp
 		fwrite(buffer, 1, Buf_Pos_cur, ttf);
 		fclose(ttf);
 #endif
-		free_align(buffer);
+		free_align(rbuffer);
 		//delete[] buffer;
 		free_align(BlkInfo);
 		//delete[] BlkInfo;
@@ -105,7 +107,7 @@ namespace acp
 
 	static inline void BufPre(BlockInfo &bufinfo)
 	{
-		memset(bufinfo.index, 0xff, 256);
+		memset(bufinfo.index, 0x80, 256);
 		return;
 	}
 
@@ -181,16 +183,18 @@ namespace acp
 		uint64_t *p_buf_cur,//current pos of dic_data
 			*p_chk_cur;//current pos of chker_data
 		char *p_prefetch;//for prefetch
-		int16_t blk_num = 0;//current searching block num
+		int16_t blk_num,//current searching block num
+			blk_num_next;
 		int32_t findpos,
 			bufspos;//real start pos of buf in the whole pool
 		int32_t c_thr_left,//left border for this cycle
-			c_thr_right;//right border for this cycle
+			c_thr_min;//min border for this cycle
 		uint8_t chkleft;//left count of checker
 		uint8_t &chk_minval = chkdata.minval,
 			&chk_minpos = chkdata.minpos;
 		int8_t objpos,
-			maxpos;
+			maxpos,
+			maxpos_next;
 		_CRT_ALIGN(16) uint64_t judgenum[65];//judge num
 
 		//init
@@ -251,25 +255,27 @@ namespace acp
 			_mm_prefetch((char*)blkinf->jump, _MM_HINT_T0);
 			_mm_prefetch((char*)blkinf->jump + 64, _MM_HINT_T0);
 		};
-		auto func_preborder = [&]
+		auto func_catchnext = [&]
 		{//go to choose next block
-			//only the first block maybe size limit so dont need to worry about that
-			//drop this work to other part
-			c_thr_left = blk_num * 128;
-			blkinf = &BlkInfo[blk_num];
-			//prefetch
-			p_prefetch = (char *)&blkinf->index[chk_minval];//pos of the index of next DictItem
-			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
+			blk_num_next = blk_num - tNum;
+			if (blk_num_next >= Buf_Blk_start)//avalible
+			{
+				//prefetch
+				p_prefetch = (char *)&BlkInfo[blk_num_next].index[chk_minval];//pos of the index of next DictItem
+				_mm_prefetch(p_prefetch, _MM_HINT_NTA);
+				//prefetch jump data
+				_mm_prefetch((char*)BlkInfo[blk_num_next].jump, _MM_HINT_T0);
+				_mm_prefetch((char*)BlkInfo[blk_num_next].jump + 64, _MM_HINT_T0);
+				//prefetch buffer data
+				_mm_prefetch((char*)buffer + c_thr_left, _MM_HINT_T0);
+				_mm_prefetch((char*)buffer + c_thr_left + 64, _MM_HINT_T0);
 
-			//prefetch buffer data
-			_mm_prefetch((char*)buffer + c_thr_left, _MM_HINT_T0);
-			_mm_prefetch((char*)buffer + c_thr_left + 64, _MM_HINT_T0);
-			//prefetch jump data
-			_mm_prefetch((char*)blkinf->jump, _MM_HINT_T0);
-			_mm_prefetch((char*)blkinf->jump + 64, _MM_HINT_T0);
-
-			//prepare border
-			maxpos = 127 + chk_minpos - chkdata.curlen;
+				//prepare border
+				c_thr_left = blk_num * 128;
+				c_thr_min = c_thr_left - 64;
+				maxpos_next = 127 + chk_minpos - chkdata.curlen;
+			}
+			//blkinf = &BlkInfo[blk_num];
 		};
 		
 		while (true)//run one cycle at a FindInBuf
@@ -278,27 +284,29 @@ namespace acp
 			memcpy(&chkdata, inchk, sizeof(ChkItem));
 			blk_num = Buf_Blk_cur - tID;
 
+			//locate buffer
 			blkinf = &BlkInfo[blk_num];
+			func_catchnext();
 
 			//prefetch current
 			p_prefetch = (char *)&blkinf->index[chk_minval];//pos of the index of the DictItem
-			_mm_prefetch(p_prefetch, _MM_HINT_T0);
+			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
 
 			//prepare border
 			c_thr_left = blk_num * 128;
-			
-			if (blk_num == Buf_Blk_cur)
-			{
-				maxpos = (Buf_Pos_cur & 0x7f) + chk_minpos - chkdata.curlen;
-				if (maxpos < 0)//no enough space in this block
-				{
-					blk_num -= tNum;
-					if (blk_num >= Buf_Blk_start)//out of start
-						func_preborder();
-				}
-			}
-			else
-				maxpos = 127 + chk_minpos - chkdata.curlen;
+			c_thr_min = c_thr_left - 64;
+			maxpos = 127 + chk_minpos - chkdata.curlen;
+
+			func_catchnext();
+			//prefetch
+			p_prefetch = (char *)&BlkInfo[blk_num].index[chk_minval];//pos of the index of next DictItem
+			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
+			//prefetch jump data
+			_mm_prefetch((char*)BlkInfo[blk_num].jump, _MM_HINT_T0);
+			_mm_prefetch((char*)BlkInfo[blk_num].jump + 64, _MM_HINT_T0);
+			//prefetch buffer data
+			_mm_prefetch((char*)buffer + c_thr_left, _MM_HINT_T0);
+			_mm_prefetch((char*)buffer + c_thr_left + 64, _MM_HINT_T0);
 
 			for (; blk_num >= Buf_Blk_start;)//loop when finish a BufBlock,fail OR suc(add chk)
 			{
@@ -306,25 +314,28 @@ namespace acp
 				findpos = 0x7fffffff;
 				
 				objpos = blkinf->index[chk_minval];//object-bit pos in the buf block
-				while (objpos > maxpos)
-					objpos = blkinf->jump[objpos];
-				if (objpos == (int8_t)0xff)//no matching word
+				if (objpos == (int8_t)0x80)//no matching word
 				{
-					blk_num -= tNum;
-					if (blk_num < Buf_Blk_start)//out of start
+					if (blk_num_next < Buf_Blk_start)//no next
 						break;
-					func_preborder();
+					blkinf = &BlkInfo[blk_num = blk_num_next];
+					maxpos = maxpos_next;
+					func_catchnext();
 
 					continue;
 				}
-
+				while (objpos > maxpos)
+					objpos = blkinf->jump[objpos];
 				bufspos = c_thr_left + objpos - chk_minpos;//get real start pos
-				if (bufspos < 0)//beyond buffer pool
-				{//TODO:allow little more data
-					blk_num -= tNum;
-					if (blk_num < Buf_Blk_start)//out of start
+				//if objpos = 0x80,bufspos must be lefter than c_thr_left more than 128
+				//so it must < c_thr_min
+				if (bufspos < c_thr_min)//no matching word
+				{
+					if (blk_num_next < Buf_Blk_start)//no next
 						break;
-					func_preborder();
+					blkinf = &BlkInfo[blk_num = blk_num_next];
+					maxpos = maxpos_next;
+					func_catchnext();
 
 					continue;
 				}
@@ -340,14 +351,12 @@ namespace acp
 					{//not match
 						objpos = blkinf->jump[objpos];//get next pos
 						bufspos = c_thr_left + objpos - chk_minpos;//get real start pos
-						if (objpos == (int8_t)0xff || bufspos < 0)//outside the block OR beyond buffer pool
-							break;
 
 						p_buf_cur = (uint64_t*)(buffer + bufspos);
-						//prefetch next
-						//_mm_prefetch((char*)p_buf_cur, _MM_HINT_NTA);//-data
-						//p_prefetch = (char *)&blkinf->jump[bufspos];//pos of next jump
-						//_mm_prefetch(p_prefetch, _MM_HINT_NTA);//-jump
+
+						if (bufspos < c_thr_min)//outside the block OR beyond buffer pool
+							break;
+
 
 						if (chkleft != chkdata.curlen)
 						{//in a match, reset chk pos
@@ -387,15 +396,18 @@ namespace acp
 					bufrep.offset = Buf_Pos_cur - findpos;
 					if (Chk_inc(chkdata) == 0)
 						break;//chkdata is full used
-
+					//add chk suc
 					if (blk_num == Buf_Blk_cur)
 					{
 						maxpos = (Buf_Pos_cur & 0x7f) + chk_minpos - chkdata.curlen;
 						if (maxpos < 0)//no enough space in this block
 						{
-							blk_num -= tNum;
-							if (blk_num >= Buf_Blk_start)//out of start
-								func_preborder();
+							if (blk_num_next < Buf_Blk_start)//no next
+								break;
+							blkinf = &BlkInfo[blk_num = blk_num_next];
+							maxpos = maxpos_next;
+							func_catchnext();
+
 						}
 					}
 					else
@@ -403,12 +415,12 @@ namespace acp
 				}
 				else
 				{
-					blk_num -= tNum;
-					if (blk_num < Buf_Blk_start)//out of start
+					if (blk_num_next < Buf_Blk_start)//no next
 						break;
-					func_preborder();
+					blkinf = &BlkInfo[blk_num = blk_num_next];
+					maxpos = maxpos_next;
+					func_catchnext();
 
-					continue;
 				}
 			}
 			//end of seaching the whole diction
