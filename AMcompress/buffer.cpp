@@ -378,15 +378,17 @@ namespace acp
 					if (((*p_buf_cur) ^ (*p_chk_cur)) & judgenum[chkleft])
 					{//not match
 						objpos = blkinf->jump[objpos];//get next pos
+						
 						bufspos = c_thr_left + objpos - chk_minposD;//get real start pos
-
-						p_buf_cur = (uint64_t*)(buffer + bufspos);
 
 						if (bufspos < c_thr_min)//outside the block OR beyond buffer pool
 							break;
 
+						p_buf_cur = (uint64_t*)(buffer + bufspos);
+						_mm_prefetch((char*)p_buf_cur, _MM_HINT_T0);
+						_mm_prefetch((char*)&blkinf->jump[objpos], _MM_HINT_T0);
 
-						if (chkleft != chkdata.curlen)
+						//if (chkleft != chkdata.curlen)
 						{//in a match, reset chk pos
 							p_chk_cur = (uint64_t*)chkdata.data;
 							chkleft = chkdata.curlen;
@@ -414,9 +416,10 @@ namespace acp
 
 				if (findpos != 0x7fffffff)//finally find it, update bufrep
 				{
-					
+				#if DEBUG
 					bufrep.p_b = buffer;
 					bufrep.s_b = Buf_Pos_cur;
+				#endif
 					bufrep.isFind = 0xff;
 					bufrep.objlen = chkdata.curlen;
 					bufrep.addr = buffer + findpos;
