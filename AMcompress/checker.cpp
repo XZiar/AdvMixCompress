@@ -18,7 +18,7 @@ namespace acp
 			chkdat.minval = dat;
 			chkdat.minposD = chkdat.minpos;
 			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.minval >> 1);
-			chkdat.minvalD = chkdat.minvalD & 0x7ff;
+			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		else if (chkdat.minval == dat)//may change
 		{
@@ -33,7 +33,7 @@ namespace acp
 				}
 			chkdat.minposD = chkdat.minpos;
 			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.minval >> 1);
-			chkdat.minvalD = chkdat.minvalD & 0x7ff;
+			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		return ++chkdat.curlen;
 	}
@@ -77,13 +77,13 @@ namespace acp
 		{
 			chkdat.minposD = 1;
 			chkdat.minvalD = (uint16_t)(chkdat.data[1] >> 1) * (chkdat.minval >> 1);
-			chkdat.minvalD = chkdat.minvalD & 0x7ff;
+			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		else
 		{
 			chkdat.minposD = chkdat.minpos;
 			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.minval >> 1);
-			chkdat.minvalD = chkdat.minvalD & 0x7ff;
+			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
 		}
 		
 		return 0;

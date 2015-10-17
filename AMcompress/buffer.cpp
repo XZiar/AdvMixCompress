@@ -8,8 +8,8 @@ namespace acp
 {
 	struct alignas(64) BlockInfo
 	{
-		uint8_t hash[2048];
-		uint8_t jump[128];
+		uint16_t hash[1024];
+		uint16_t jump[1024];
 	};
 	
 	_CRT_ALIGN(16) static uint8_t *buffer, *rbuffer;
@@ -48,7 +48,7 @@ namespace acp
 		ttf = _wfopen(L"out_buf.data", L"wb");
 		fclose(ttf);
 #endif
-		uint32_t bufcount = blkcount * 128;
+		uint32_t bufcount = blkcount * 1024;
 		Buf_Pos_max = bufcount * 3;
 
 		rbuffer = (uint8_t*)malloc_align(sizeof(uint8_t)*Buf_Pos_max + 64, 64);
@@ -90,17 +90,17 @@ namespace acp
 	{
 #if DEBUG
 		ttf = _wfopen(L"out_buf.data", L"ab");
-		fwrite(buffer, 1, (Buf_Blk_max * 3 - Buf_Blk_start) * 128, ttf);
+		fwrite(buffer, 1, (Buf_Blk_max * 3 - Buf_Blk_start) * 1024, ttf);
 		fclose(ttf);
 #endif
-		void* src = buffer + Buf_Blk_start * 128;
-		memcpy(buffer, src, (Buf_Blk_max * 3 - Buf_Blk_start) * 128);
+		void* src = buffer + Buf_Blk_start * 1024;
+		memcpy(buffer, src, (Buf_Blk_max * 3 - Buf_Blk_start) * 1024);
 
 		src = &BlkInfo[Buf_Blk_start];
 		uint32_t len = sizeof(BlockInfo)*Buf_Blk_max;
 		memcpy(&BlkInfo[0], src, len);
 		Buf_Blk_cur -= Buf_Blk_start;
-		Buf_Pos_cur -= Buf_Blk_start * 128;
+		Buf_Pos_cur -= Buf_Blk_start * 1024;
 		Buf_Blk_start = 0;
 		return;
 	}
@@ -118,7 +118,7 @@ namespace acp
 			BufClean();
 		uint8_t *objaddr = buffer + Buf_Pos_cur;
 		memcpy(objaddr, data, len);
-		uint16_t left_len = 128 - (Buf_Pos_cur - Buf_Blk_cur * 128),
+		uint16_t left_len = 1024 - (Buf_Pos_cur - Buf_Blk_cur * 1024),
 			right_len = 0;
 		if (len > left_len)
 		{//full of a block
@@ -130,11 +130,11 @@ namespace acp
 		}
 
 		//fill this block
-		for (auto a = Buf_Pos_cur & 0x7f; left_len--; ++a)
+		for (auto a = Buf_Pos_cur & 0x3ff; left_len--; ++a)
 		{
 			uint16_t tmpdat = buffer[(int32_t)Buf_Pos_cur - 1] >> 1;
 			tmpdat = tmpdat * (buffer[Buf_Pos_cur++] >> 1);
-			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat & 0x7ff];
+			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = (tmpdat & 0x7ff) >> 1];
 			BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
 		}
 
@@ -144,10 +144,10 @@ namespace acp
 			BufPre(BlkInfo[++Buf_Blk_cur]);
 			if (Buf_Blk_cur - Buf_Blk_start >= Buf_Blk_max)
 				++Buf_Blk_start;
-			if (right_len > 128)
+			if (right_len > 1024)
 			{
-				left_len = 128;
-				right_len -= 128;
+				left_len = 1024;
+				right_len -= 1024;
 			}
 			else
 			{
@@ -158,7 +158,7 @@ namespace acp
 			{
 				uint16_t tmpdat = buffer[(int32_t)Buf_Pos_cur - 1] >> 1;
 				tmpdat = tmpdat * (buffer[Buf_Pos_cur++] >> 1);
-				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat & 0x7ff];
+				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = (tmpdat & 0x7ff) >> 1];
 				BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
 			}
 		}
@@ -194,7 +194,7 @@ namespace acp
 		uint8_t chkleft;//left count of checker
 		uint16_t &chk_minvalD = chkdata.minvalD;
 		uint8_t	&chk_minposD = chkdata.minposD;
-		int8_t objpos,
+		int16_t objpos,
 			maxpos,
 			maxpos_next;
 		_CRT_ALIGN(16) uint64_t judgenum[65];//judge num
@@ -267,7 +267,7 @@ namespace acp
 				return;
 			while (true)
 			{
-				if (BlkInfo[blk_num_next].hash[chk_minvalD] == (int8_t)0x80)//no find in this block
+				if (BlkInfo[blk_num_next].hash[chk_minvalD] == (int16_t)0x8080)//no find in this block
 				{
 					blk_num_next -= tNum;
 					if (blk_num_next >= Buf_Blk_start)//avalible
@@ -289,9 +289,9 @@ namespace acp
 				_mm_prefetch((char*)buffer + c_thr_left + 64, _MM_HINT_T0);
 
 				//prepare border
-				c_thr_left = blk_num * 128;
+				c_thr_left = blk_num * 1024;
 				c_thr_min = c_thr_left - 64;
-				maxpos_next = 127 + chk_minposD - chkdata.curlen;
+				maxpos_next = 1024 + chk_minposD - chkdata.curlen;
 				break;
 			}
 			//blkinf = &BlkInfo[blk_num];
@@ -312,9 +312,12 @@ namespace acp
 			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
 
 			//prepare border
-			c_thr_left = blk_num * 128;
+			c_thr_left = blk_num * 1024;
 			c_thr_min = c_thr_left - 64;
-			maxpos = 127 + chk_minposD - chkdata.curlen;
+			if(Buf_Pos_cur == blk_num)
+				maxpos = (Buf_Pos_cur & 0x3ff) + chk_minposD - chkdata.curlen;
+			else
+				maxpos = 1024 + chk_minposD - chkdata.curlen;
 
 			func_catchnext();
 			//prefetch
@@ -333,7 +336,7 @@ namespace acp
 				findpos = 0x7fffffff;
 				
 				objpos = blkinf->hash[chk_minvalD];//object-bit pos in the buf block
-				if (objpos == (int8_t)0x80)//no matching word
+				if (objpos == (int8_t)0x8080)//no matching word
 				{
 					if (blk_num_next < Buf_Blk_start)//no next
 						break;
@@ -346,7 +349,7 @@ namespace acp
 				while (objpos > maxpos)
 					objpos = blkinf->jump[objpos];
 				bufspos = c_thr_left + objpos - chk_minposD;//get real start pos
-				//if objpos = 0x80,bufspos must be lefter than c_thr_left more than 128
+				//if objpos = 0x8080,bufspos must be lefter than c_thr_left more than 128
 				//so it must < c_thr_min
 				if (bufspos < c_thr_min)//no matching word
 				{
@@ -418,7 +421,7 @@ namespace acp
 					//add chk suc
 					if (blk_num == Buf_Blk_cur)
 					{
-						maxpos = (Buf_Pos_cur & 0x7f) + chk_minposD - chkdata.curlen;
+						maxpos = (Buf_Pos_cur & 0x3ff) + chk_minposD - chkdata.curlen;
 						if (maxpos < 0)//no enough space in this block
 						{
 							if (blk_num_next < Buf_Blk_start)//no next
