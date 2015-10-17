@@ -314,7 +314,7 @@ namespace acp
 			//prepare border
 			c_thr_left = blk_num * 1024;
 			c_thr_min = c_thr_left - 64;
-			if(Buf_Pos_cur == blk_num)
+			if(Buf_Blk_cur == blk_num)
 				maxpos = (Buf_Pos_cur & 0x3ff) + chk_minposD - chkdata.curlen;
 			else
 				maxpos = 1024 + chk_minposD - chkdata.curlen;
@@ -433,7 +433,7 @@ namespace acp
 						}
 					}
 					else
-						maxpos = 127 + chk_minposD - chkdata.curlen;
+						maxpos = 1024 + chk_minposD - chkdata.curlen;
 				}
 				else
 				{
