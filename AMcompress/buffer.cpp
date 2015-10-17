@@ -190,7 +190,9 @@ namespace acp
 		int32_t findpos,
 			bufspos;//real start pos of buf in the whole pool
 		int32_t c_thr_left,//left border for this cycle
-			c_thr_min;//min border for this cycle
+			c_thr_min,//min border for this cycle
+			c_thr_left_next,//left border for this cycle
+			c_thr_min_next;//min border for this cycle
 		uint8_t chkleft;//left count of checker
 		uint16_t &chk_minvalD = chkdata.minvalD;
 		uint8_t	&chk_minposD = chkdata.minposD;
@@ -259,42 +261,42 @@ namespace acp
 		};
 		auto func_catchnext = [&]
 		{//go to choose next block
-			blk_num_next = blk_num - tNum;
-			//prefetch
-			p_prefetch = (char *)&BlkInfo[blk_num_next].hash[chk_minvalD];//pos of the index of next DictItem
-			_mm_prefetch(p_prefetch, _MM_HINT_T0);
-			if (blk_num_next < Buf_Blk_start)
+			if ((blk_num_next = blk_num - tNum) < Buf_Blk_start)
 				return;
+
+			//prefetch
+			int16_t tmp;
+			p_prefetch = (char *)&BlkInfo[blk_num_next].hash[chk_minvalD];//pos of the index of next DictItem
+			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
 			while (true)
 			{
-				if (BlkInfo[blk_num_next].hash[chk_minvalD] == (int16_t)0x8080)//no find in this block
+				if ((tmp = BlkInfo[blk_num_next].hash[chk_minvalD]) == (int16_t)0x8080)//no find in this block
 				{
 					blk_num_next -= tNum;
 					if (blk_num_next >= Buf_Blk_start)//avalible
 					{
 						//prefetch next
 						p_prefetch = (char *)&BlkInfo[blk_num_next].hash[chk_minvalD];//pos of the index of next DictItem
-						_mm_prefetch(p_prefetch, _MM_HINT_T0);
+						_mm_prefetch(p_prefetch, _MM_HINT_NTA);
 						continue;
 					}
 					else
-						break;
+						return;
 				}
 				
+				//find in this block
+
+				c_thr_left_next = blk_num_next * 1024;
 				//prefetch jump data
-				_mm_prefetch((char*)BlkInfo[blk_num_next].jump, _MM_HINT_T0);
-				_mm_prefetch((char*)BlkInfo[blk_num_next].jump + 64, _MM_HINT_T0);
+				_mm_prefetch((char*)&BlkInfo[blk_num_next].jump[tmp], _MM_HINT_T0);
 				//prefetch buffer data
-				_mm_prefetch((char*)buffer + c_thr_left, _MM_HINT_T0);
-				_mm_prefetch((char*)buffer + c_thr_left + 64, _MM_HINT_T0);
+				_mm_prefetch((char*)buffer + c_thr_left_next + tmp, _MM_HINT_T0);
 
 				//prepare border
-				c_thr_left = blk_num * 1024;
-				c_thr_min = c_thr_left - 64;
+				c_thr_min_next = c_thr_left_next - 64;
 				maxpos_next = 1024 + chk_minposD - chkdata.curlen;
 				break;
 			}
-			//blkinf = &BlkInfo[blk_num];
 		};
 		
 		while (true)//run one cycle at a FindInBuf
@@ -342,6 +344,8 @@ namespace acp
 						break;
 					blkinf = &BlkInfo[blk_num = blk_num_next];
 					maxpos = maxpos_next;
+					c_thr_left = c_thr_left_next;
+					c_thr_min = c_thr_min_next;
 					func_catchnext();
 
 					continue;
@@ -357,6 +361,8 @@ namespace acp
 						break;
 					blkinf = &BlkInfo[blk_num = blk_num_next];
 					maxpos = maxpos_next;
+					c_thr_left = c_thr_left_next;
+					c_thr_min = c_thr_min_next;
 					func_catchnext();
 
 					continue;
@@ -428,6 +434,8 @@ namespace acp
 								break;
 							blkinf = &BlkInfo[blk_num = blk_num_next];
 							maxpos = maxpos_next;
+							c_thr_left = c_thr_left_next;
+							c_thr_min = c_thr_min_next;
 							func_catchnext();
 
 						}
@@ -441,6 +449,8 @@ namespace acp
 						break;
 					blkinf = &BlkInfo[blk_num = blk_num_next];
 					maxpos = maxpos_next;
+					c_thr_left = c_thr_left_next;
+					c_thr_min = c_thr_min_next;
 					func_catchnext();
 
 				}
