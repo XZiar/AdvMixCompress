@@ -8,16 +8,16 @@ namespace acp
 {
 	struct alignas(64) BlockInfo
 	{
-		uint16_t hash[1024];
+		int16_t hash[1024];
 		uint16_t jump[1024];
 	};
 	
-	_CRT_ALIGN(16) static uint8_t *buffer, *rbuffer;
-	_CRT_ALIGN(16) static BlockInfo *BlkInfo;//
-	_CRT_ALIGN(16) int16_t Buf_Blk_start,//start block of buf
+	static uint8_t *buffer, *rbuffer;
+	static BlockInfo *BlkInfo;//
+	int16_t Buf_Blk_start,//start block of buf
 		Buf_Blk_cur,//current block of buf
 		Buf_Blk_max;//max block num of buf
-	_CRT_ALIGN(16) uint32_t Buf_Pos_cur,//len of buf
+	uint32_t Buf_Pos_cur,//len of buf
 		Buf_Pos_max;//max size of buf pool
 	static uint64_t judgenum_all[65];//judge num
 
@@ -265,38 +265,35 @@ namespace acp
 				return;
 
 			//prefetch
-			int16_t tmp;
-			p_prefetch = (char *)&BlkInfo[blk_num_next].hash[chk_minvalD];//pos of the index of next DictItem
-			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
-			while (true)
+			char *p_hash = (char*)&BlkInfo[blk_num_next].hash[chk_minvalD];//pos of the index of next DictItem
+			_mm_prefetch(p_hash, _MM_HINT_NTA);
+			while (*(int16_t*)p_hash == (int16_t)0x8080)//no find in this block
 			{
-				if ((tmp = BlkInfo[blk_num_next].hash[chk_minvalD]) == (int16_t)0x8080)//no find in this block
+
+				blk_num_next -= tNum;
+				if (blk_num_next >= Buf_Blk_start)//avalible
 				{
-					blk_num_next -= tNum;
-					if (blk_num_next >= Buf_Blk_start)//avalible
-					{
-						//prefetch next
-						p_prefetch = (char *)&BlkInfo[blk_num_next].hash[chk_minvalD];//pos of the index of next DictItem
-						_mm_prefetch(p_prefetch, _MM_HINT_NTA);
-						continue;
-					}
-					else
-						return;
+					//prefetch next
+					p_hash -= sizeof(BlockInfo)*tNum;//pos of the index of next DictItem
+					_mm_prefetch(p_hash, _MM_HINT_NTA);
+					continue;
 				}
-				
-				//find in this block
-
-				c_thr_left_next = blk_num_next * 1024;
-				//prefetch jump data
-				_mm_prefetch((char*)&BlkInfo[blk_num_next].jump[tmp], _MM_HINT_T0);
-				//prefetch buffer data
-				_mm_prefetch((char*)buffer + c_thr_left_next + tmp, _MM_HINT_T0);
-
-				//prepare border
-				c_thr_min_next = c_thr_left_next - 64;
-				maxpos_next = 1024 + chk_minposD - chkdata.curlen;
-				break;
+				else
+					return;
 			}
+			//find in this block
+
+			c_thr_left_next = blk_num_next * 1024;
+			int16_t tmp = *(int16_t*)p_hash;
+			//prefetch jump data
+			_mm_prefetch((char*)&BlkInfo[blk_num_next].jump[tmp], _MM_HINT_T0);
+			//prefetch buffer data
+			_mm_prefetch((char*)buffer + c_thr_left_next + tmp, _MM_HINT_T0);
+
+			//prepare border
+			c_thr_min_next = c_thr_left_next - 64;
+			maxpos_next = 1024 + chk_minposD - chkdata.curlen;
+
 		};
 		
 		while (true)//run one cycle at a FindInBuf
