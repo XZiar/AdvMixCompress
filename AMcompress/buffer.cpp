@@ -157,9 +157,11 @@ namespace acp
 			}
 			for (auto a = 0; a < left_len; ++a)
 			{
-				uint16_t tmpdat = (uint16_t)(buffer[(int32_t)Buf_Pos_cur - 1] >> 1) * (buffer[(int32_t)Buf_Pos_cur - 2] >> 1);
+				uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
+				//uint16_t tmpdat = (uint16_t)(buffer[(int32_t)Buf_Pos_cur - 1] >> 1) * (buffer[(int32_t)Buf_Pos_cur - 2] >> 1);
 				tmpdat += buffer[Buf_Pos_cur++];
-				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = (tmpdat & 0x7ff) >> 1];
+				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat % 769];
+				//BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = (tmpdat & 0x7ff) >> 1];
 				BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
 			}
 		}
