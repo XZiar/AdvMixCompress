@@ -17,8 +17,8 @@ namespace acp
 			chkdat.minpos = chkdat.curlen;
 			chkdat.minval = dat;
 			chkdat.minposD = chkdat.minpos;
-			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.data[chkdat.minposD - 2] >> 1) + chkdat.minval;
-			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
+			chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 1] * 13 + chkdat.minval;
+			chkdat.minvalD = chkdat.minvalD % 769;
 		}
 		else if (chkdat.minval == dat)//may change
 		{
@@ -32,8 +32,8 @@ namespace acp
 					break;
 				}
 			chkdat.minposD = chkdat.minpos;
-			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.data[chkdat.minposD - 2] >> 1) + chkdat.minval;
-			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
+			chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 1] * 13 + chkdat.minval;
+			chkdat.minvalD = chkdat.minvalD % 769;
 		}
 		return ++chkdat.curlen;
 	}
@@ -76,14 +76,14 @@ namespace acp
 		if (chkdat.minpos < 2)
 		{
 			chkdat.minposD = 3;
-			chkdat.minvalD = (uint16_t)(chkdat.data[1] >> 1) * (chkdat.minval >> 1) + chkdat.data[2];
-			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
+			chkdat.minvalD = (uint16_t)chkdat.minval * 169 + chkdat.data[1] * 13 + chkdat.data[2];
+			chkdat.minvalD = chkdat.minvalD % 769;
 		}
 		else
 		{
 			chkdat.minposD = chkdat.minpos;
-			chkdat.minvalD = (uint16_t)(chkdat.data[chkdat.minposD - 1] >> 1) * (chkdat.data[chkdat.minposD - 2] >> 1) + chkdat.minval;
-			chkdat.minvalD = (chkdat.minvalD & 0x7ff) >> 1;
+			chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 1] * 13 + chkdat.minval;
+			chkdat.minvalD = chkdat.minvalD % 769;
 		}
 		
 		return 0;

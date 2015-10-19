@@ -8,7 +8,7 @@ namespace acp
 {
 	struct alignas(64) BlockInfo
 	{
-		int16_t hash[1024];
+		int16_t hash[832];
 		uint16_t jump[1024];
 	};
 	
@@ -132,9 +132,10 @@ namespace acp
 		//fill this block
 		for (auto a = Buf_Pos_cur & 0x3ff; left_len--; ++a)
 		{
-			uint16_t tmpdat = (uint16_t)(buffer[(int32_t)Buf_Pos_cur - 1] >> 1) * (buffer[(int32_t)Buf_Pos_cur - 2] >> 1);
+			uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
+			//chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 2] * 13 + chkdat.minval;
 			tmpdat += buffer[Buf_Pos_cur++];
-			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = (tmpdat & 0x7ff) >> 1];
+			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat % 769];
 			BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
 		}
 
