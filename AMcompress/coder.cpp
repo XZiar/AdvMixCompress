@@ -118,8 +118,8 @@ namespace acp
 			if (brep[a].isFind == 0)//not find
 				continue;
 			tmpret.part_data[5] = brep[a].offset;
-			tmpret.p_b = brep[a].p_b;
-			tmpret.s_b = brep[a].s_b;
+			//tmpret.p_b = brep[a].p_b;
+			//tmpret.s_b = brep[a].s_b;
 			tmpret.part_num = 4;
 			tmpret.srclen = brep[a].objlen;
 			//judge offset

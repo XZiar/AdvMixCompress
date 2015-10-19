@@ -10,7 +10,9 @@ namespace acp
 			limit = 64,//max len of this chkitem
 			curlen,//current len of this chkitem
 			mincnt,//appear-count of min-appear
-			empty[11];
+			minposD;//current pos of min-appear
+		uint16_t minvalD;
+		uint8_t empty[8];
 		uint8_t counts[256];
 		
 	};
