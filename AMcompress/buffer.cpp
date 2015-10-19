@@ -6,8 +6,8 @@
 
 namespace acp
 {
-#define BLKSIZE 4096
-#define BLKMASK 0xfff
+#define BLKSIZE 8192
+#define BLKMASK 0x1fff
 	struct alignas(64) BlockInfo
 	{
 		int16_t hash[832];
