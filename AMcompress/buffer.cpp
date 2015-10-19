@@ -6,10 +6,12 @@
 
 namespace acp
 {
+#define BLKSIZE 4096
+#define BLKMASK 0xfff
 	struct alignas(64) BlockInfo
 	{
 		int16_t hash[832];
-		uint16_t jump[1024];
+		uint16_t jump[BLKSIZE];
 	};
 	
 	static uint8_t *buffer, *rbuffer;
@@ -48,7 +50,7 @@ namespace acp
 		ttf = _wfopen(L"out_buf.data", L"wb");
 		fclose(ttf);
 #endif
-		uint32_t bufcount = blkcount * 1024;
+		uint32_t bufcount = blkcount * BLKSIZE;
 		Buf_Pos_max = bufcount * 3;
 
 		rbuffer = (uint8_t*)malloc_align(sizeof(uint8_t)*Buf_Pos_max + 64, 64);
@@ -90,24 +92,24 @@ namespace acp
 	{
 #if DEBUG
 		ttf = _wfopen(L"out_buf.data", L"ab");
-		fwrite(buffer, 1, (Buf_Blk_max * 3 - Buf_Blk_start) * 1024, ttf);
+		fwrite(buffer, 1, (Buf_Blk_max * 3 - Buf_Blk_start) * BLKSIZE, ttf);
 		fclose(ttf);
 #endif
-		void* src = buffer + Buf_Blk_start * 1024;
-		memcpy(buffer, src, (Buf_Blk_max * 3 - Buf_Blk_start) * 1024);
+		void* src = buffer + Buf_Blk_start * BLKSIZE;
+		memcpy(buffer, src, (Buf_Blk_max * 3 - Buf_Blk_start) * BLKSIZE);
 
 		src = &BlkInfo[Buf_Blk_start];
 		uint32_t len = sizeof(BlockInfo)*Buf_Blk_max;
 		memcpy(&BlkInfo[0], src, len);
 		Buf_Blk_cur -= Buf_Blk_start;
-		Buf_Pos_cur -= Buf_Blk_start * 1024;
+		Buf_Pos_cur -= Buf_Blk_start * BLKSIZE;
 		Buf_Blk_start = 0;
 		return;
 	}
 
 	static inline void BufPre(BlockInfo &bufinfo)
 	{
-		memset(bufinfo.hash, 0x80, 2048);
+		memset(bufinfo.hash, 0x80, BLKSIZE * 2);
 		return;
 	}
 
@@ -118,7 +120,7 @@ namespace acp
 			BufClean();
 		uint8_t *objaddr = buffer + Buf_Pos_cur;
 		memcpy(objaddr, data, len);
-		uint16_t left_len = 1024 - (Buf_Pos_cur - Buf_Blk_cur * 1024),
+		uint16_t left_len = BLKSIZE - (Buf_Pos_cur - Buf_Blk_cur * BLKSIZE),
 			right_len = 0;
 		if (len > left_len)
 		{//full of a block
@@ -130,7 +132,7 @@ namespace acp
 		}
 
 		//fill this block
-		for (auto a = Buf_Pos_cur & 0x3ff; left_len--; ++a)
+		for (auto a = Buf_Pos_cur & BLKMASK; left_len--; ++a)
 		{
 			uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
 			//chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 2] * 13 + chkdat.minval;
@@ -145,10 +147,10 @@ namespace acp
 			BufPre(BlkInfo[++Buf_Blk_cur]);
 			if (Buf_Blk_cur - Buf_Blk_start >= Buf_Blk_max)
 				++Buf_Blk_start;
-			if (right_len > 1024)
+			if (right_len > BLKSIZE)
 			{
-				left_len = 1024;
-				right_len -= 1024;
+				left_len = BLKSIZE;
+				right_len -= BLKSIZE;
 			}
 			else
 			{
@@ -172,7 +174,7 @@ namespace acp
 
 	uint8_t BufGet(uint32_t offset, uint8_t len, uint8_t data[])
 	{
-		//if (offset > Buf_Pos_cur - Buf_Blk_start * 1024)
+		//if (offset > Buf_Pos_cur - Buf_Blk_start * BLKSIZE)
 		if (offset > Buf_Pos_cur)
 			return 0x1;
 		if (len > 64)
@@ -286,7 +288,7 @@ namespace acp
 			}
 			//find in this block
 
-			c_thr_left_next = blk_num_next * 1024;
+			c_thr_left_next = blk_num_next * BLKSIZE;
 			int16_t tmp = *(int16_t*)p_hash;
 			//prefetch jump data
 			_mm_prefetch((char*)&BlkInfo[blk_num_next].jump[tmp], _MM_HINT_T0);
@@ -295,7 +297,7 @@ namespace acp
 
 			//prepare border
 			c_thr_min_next = c_thr_left_next - 64;
-			maxpos_next = 1024 + chk_minposD - chkdata.curlen;
+			maxpos_next = BLKSIZE + chk_minposD - chkdata.curlen;
 
 		};
 		
@@ -314,12 +316,12 @@ namespace acp
 			_mm_prefetch(p_prefetch, _MM_HINT_NTA);
 
 			//prepare border
-			c_thr_left = blk_num * 1024;
+			c_thr_left = blk_num * BLKSIZE;
 			c_thr_min = c_thr_left - 64;
 			if(Buf_Blk_cur == blk_num)
-				maxpos = (Buf_Pos_cur & 0x3ff) + chk_minposD - chkdata.curlen;
+				maxpos = (Buf_Pos_cur & BLKMASK) + chk_minposD - chkdata.curlen;
 			else
-				maxpos = 1024 + chk_minposD - chkdata.curlen;
+				maxpos = BLKSIZE + chk_minposD - chkdata.curlen;
 
 			func_catchnext();
 			//prefetch
@@ -430,7 +432,7 @@ namespace acp
 					//add chk suc
 					if (blk_num == Buf_Blk_cur)
 					{
-						maxpos = (Buf_Pos_cur & 0x3ff) + chk_minposD - chkdata.curlen;
+						maxpos = (Buf_Pos_cur & BLKMASK) + chk_minposD - chkdata.curlen;
 						if (maxpos < 0)//no enough space in this block
 						{
 							if (blk_num_next < Buf_Blk_start)//no next
@@ -444,7 +446,7 @@ namespace acp
 						}
 					}
 					else
-						maxpos = 1024 + chk_minposD - chkdata.curlen;
+						maxpos = BLKSIZE + chk_minposD - chkdata.curlen;
 				}
 				else
 				{
