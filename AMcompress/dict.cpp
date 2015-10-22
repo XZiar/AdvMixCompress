@@ -235,12 +235,18 @@ namespace acp
 		int8_t dicspos,//real start pos of dict
 			maxpos,//max find pos(start) in the dict
 			maxpos_next;
-
-		const uint8_t dic_num_add = tNum * 4;
+		uint8_t dic_num_add[256],
+			dic_add_idx;
+		const uint8_t num_add = tNum * 4 - 3;
 
 		//init
 		const uint64_t mask = 0x1Ui64 << tID;
 		unique_lock <mutex> lck(mtx_FindThread_Wait);
+		memset(dic_num_add, 1, 256);
+		for (auto a = 3; a < 256; a += 4)
+		{
+			dic_num_add[a] = num_add;
+		}
 #if DEBUG_Thr
 		wchar_t msg[6][24];
 
@@ -276,30 +282,42 @@ namespace acp
 		//main part
 		auto func_findnext = [&]
 		{
-			for (++dic_num_next; dic_num_next < DictSize_Cur;)
+			for (dic_num_next += dic_num_add[dic_add_idx++]; dic_num_next < DictSize_Cur; dic_num_next += dic_num_add[dic_add_idx++])
 			{
-				if (dic_num_next & 0x3)//outside block
+			#if DEBUG_BUF_CHK
+				wchar_t db_str[64];
+				if (!tID)
 				{
-					//judge if len satisfy
-					if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
-						break;//get it
-					else
-						++dic_num_next;
+					swprintf(db_str, L"\ntry %d ", dic_num_next);
+					db_log(2, db_str);
 				}
-				else//outside block
-					dic_num_next += dic_num_add;//add to locate anotherblock
+			#endif
+				//if (dic_num_next & 0x3)//inside block
+				//{
+					//judge if len satisfy
+				if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
+					break;//get it
+					//else
+						//++dic_num_next;
+				//}
+				//else//outside block
+					//dic_num_next += dic_num_add[dic_add_idx++];//add to locate anotherblock
 			}
 			if (dic_num_next >= DictSize_Cur)
 				dic_num_next = 0xffff;//end it
 			else
 			{
+			#if DEBUG_BUF_CHK
+				if (!tID)
+					db_log(2, L"get");
+			#endif
 				//prefetch next DictItem
 				p_prefetch = (char *)DictList[dic_num_next].pos;//pos of next object DictItem
 				_mm_prefetch(p_prefetch, _MM_HINT_T0);//-data
 				_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//-jump
 				_mm_prefetch(p_prefetch + 128 + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
-				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add) & 0xfc], _MM_HINT_T1);//next block info
+				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xfc], _MM_HINT_T1);//next block info
 			}
 		};
 		
@@ -308,6 +326,7 @@ namespace acp
 			//refresh chker
 			memcpy(&chkdata, inchk, sizeof(ChkItem));
 			dic_num_next = dic_num_cur = tID * 4;
+			dic_add_idx = 0;
 
 			//locate dict
 			dicinfo = &DictList[dic_num_cur];
