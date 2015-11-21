@@ -19,7 +19,7 @@ namespace acp
 
 	struct DictIndex
 	{
-		uint8_t index[64];
+		uint8_t index[56];
 	};
 
 	mutex mtx_Dict_Use;//
@@ -313,16 +313,10 @@ namespace acp
 					db_log(2, db_str);
 				}
 			#endif
-				//if (dic_num_next & 0x3)//inside block
-				//{
-					//judge if len satisfy
+				//judge if len satisfy
 				if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
-					break;//get it
-					//else
-						//++dic_num_next;
-				//}
-				//else//outside block
-					//dic_num_next += dic_num_add[dic_add_idx++];//add to locate anotherblock
+					if(DictIdx[DictList[dic_num_next].dnum].index[chk_minval] != 0x7f)
+						break;//get it
 			}
 			if (dic_num_next >= DictSize_Cur)
 				dic_num_next = 0xffff;//end it
@@ -365,6 +359,9 @@ namespace acp
 			//judge cur dict
 			maxpos = dicinfo->len - chkdata.curlen;
 			func_findnext();
+
+
+
 
 			while(dic_num_cur < DictSize_Cur)//loop when finish a DictItem,fail OR suc(add chk)
 			{
