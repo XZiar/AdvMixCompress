@@ -258,13 +258,13 @@ namespace acp
 			maxpos_next;
 		uint8_t dic_num_add[256],
 			dic_add_idx;
-		const uint8_t num_add = tNum * 4 - 3;
+		const uint8_t num_add = tNum * 8 - 3;
 
 		//init
 		const uint64_t mask = 0x1Ui64 << tID;
 		unique_lock <mutex> lck(mtx_FindThread_Wait);
 		memset(dic_num_add, 1, 256);
-		for (auto a = 3; a < 256; a += 4)
+		for (auto a = 7; a < 256; a += 8)
 		{
 			dic_num_add[a] = num_add;
 		}
@@ -339,7 +339,7 @@ namespace acp
 				p_prefetch = (char *)&DictIdx[DictList[dic_num_next].dnum];//pos of the object DictIndex
 				_mm_prefetch(p_prefetch + 128 + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
-				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xfc], _MM_HINT_T1);//next block info
+				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xf8], _MM_HINT_T1);//next block info
 			}
 		};
 		
@@ -347,7 +347,7 @@ namespace acp
 		{
 			//refresh chker
 			memcpy(&chkdata, inchk, sizeof(ChkItem));
-			dic_num_next = dic_num_cur = tID * 4;
+			dic_num_next = dic_num_cur = tID * 8;
 			dic_add_idx = 0;
 
 			//locate dict
