@@ -7,7 +7,7 @@ namespace acp
 	{
 		uint8_t data[64];
 		uint8_t jump[64];
-		uint8_t index[256];
+		//uint8_t index[256];
 	};
 
 	struct DictReport
