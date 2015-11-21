@@ -12,7 +12,8 @@ namespace acp
 			mincnt,//appear-count of min-appear
 			minposD;//current pos of min-appear
 		uint16_t minvalD;
-		uint8_t empty[8];
+		uint8_t minvalDD;//current bit value of min-appear
+		uint8_t empty[7];
 		uint8_t counts[256];
 		
 	};

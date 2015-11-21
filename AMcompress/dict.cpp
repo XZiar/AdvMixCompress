@@ -19,7 +19,7 @@ namespace acp
 
 	struct DictIndex
 	{
-		uint8_t index[256];
+		uint8_t index[64];
 	};
 
 	mutex mtx_Dict_Use;//
@@ -172,13 +172,18 @@ namespace acp
 	static inline void DictPre(DictItem &dicdata, DictIndex &dicidx, const uint8_t len)
 	{
 		//memset(dicdata.jump, 0x7f, 64);
-		memset(dicidx.index, 0x7f, 256);
-		for (uint8_t a = len; a--;)
+		memset(dicidx.index, 0x7f, sizeof(DictIndex));
+		for (uint8_t a = len - 1; a > 1;--a)
 		{
-			uint8_t dat = dicdata.data[a];
+			//uint8_t dat = dicdata.data[a];
+			//uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
+			//tmpdat += buffer[Buf_Pos_cur++];
+			uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
+			uint8_t dat = (tmpdat % 769) % 53;
 			dicdata.jump[a] = dicidx.index[dat];
 			dicidx.index[dat] = a;
 		}
+		dicdata.jump[0] = dicdata.jump[1] = 0x7f;
 		return;
 	}
 
@@ -242,8 +247,12 @@ namespace acp
 		uint8_t findpos,
 			objpos,//object-bit pos in the dict
 			chkleft;//left count of checker
-		uint8_t &chk_minval = chkdata.minval,
-			&chk_minpos = chkdata.minpos;
+
+		//uint8_t &chk_minval = chkdata.minval,
+			//&chk_minpos = chkdata.minpos;
+		//uint16_t &chk_minvalD = chkdata.minvalD;
+		uint8_t	&chk_minpos = chkdata.minposD;
+		uint8_t &chk_minval = chkdata.minvalDD;
 		int8_t dicspos,//real start pos of dict
 			maxpos,//max find pos(start) in the dict
 			maxpos_next;

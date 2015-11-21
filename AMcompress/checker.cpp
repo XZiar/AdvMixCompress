@@ -35,6 +35,7 @@ namespace acp
 			chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 1] * 13 + chkdat.minval;
 			chkdat.minvalD = chkdat.minvalD % 769;
 		}
+		chkdat.minvalDD = chkdat.minvalD % 53;
 		return ++chkdat.curlen;
 	}
 
@@ -85,7 +86,7 @@ namespace acp
 			chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 1] * 13 + chkdat.minval;
 			chkdat.minvalD = chkdat.minvalD % 769;
 		}
-		
+		chkdat.minvalDD = chkdat.minvalD % 53;
 		return 0;
 	}
 }
