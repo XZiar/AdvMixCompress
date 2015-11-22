@@ -86,7 +86,7 @@ namespace acp
 				}
 				//if (right_dis < 0)
 					//printf("\n\n\n");
-				if (drep[a].diclen > 32)
+				if (drep[a].diclen > 48)
 				{
 					if (tmpa < 16 && tmpb < 16)
 					{//mid
@@ -101,7 +101,7 @@ namespace acp
 					else
 						continue;//uncodable
 				}
-				else if (drep[a].diclen > 16)
+				else if (drep[a].diclen > 32)
 				{
 					if (tmpa < 8 && tmpb < 16)
 					{//mid
@@ -116,12 +116,27 @@ namespace acp
 					else
 						continue;//uncodable
 				}
+				else if (drep[a].diclen > 16)
+				{
+					if (tmpa < 8 && tmpb < 8)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 7;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 3;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 3;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
 				else if (drep[a].diclen > 8)
 				{
 					if (tmpa < 4 && tmpb < 8)
 					{//mid
 						tmpret.type += 0x02;
-						tmplen += 6;
+						tmplen += 5;
 						tmpret.part_num = 5;
 						tmpret.part_len[3] = 2;
 						tmpret.part_data[3] = tmpa;
@@ -133,12 +148,12 @@ namespace acp
 				}
 				else
 				{
-					if (tmpa < 4 && tmpb < 4)
+					if (tmpa < 2 && tmpb < 4)
 					{//mid
 						tmpret.type += 0x02;
-						tmplen += 5;
+						tmplen += 4;
 						tmpret.part_num = 5;
-						tmpret.part_len[3] = 2;
+						tmpret.part_len[3] = 1;
 						tmpret.part_data[3] = tmpa;
 						tmpret.part_len[4] = 2;
 						tmpret.part_data[4] = tmpb;
@@ -603,16 +618,20 @@ namespace acp
 				bool altype = in.getNext();
 				uint8_t tmpa, tmpb;
 				uint8_t dlen = getDictLen(op.dID);
-
-				if (dlen > 32)
+				if (dlen > 48)
 				{
 					tmpa = in.getBits(4);
+					tmpb = in.getBits(4) + tmpa;
+				}
+				else if (dlen > 32)
+				{
+					tmpa = in.getBits(3);
 					tmpb = in.getBits(4) + tmpa;
 				}
 				else if (dlen > 16)
 				{
 					tmpa = in.getBits(3);
-					tmpb = in.getBits(4) + tmpa;
+					tmpb = in.getBits(3) + tmpa;
 				}
 				else if (dlen > 8)
 				{
@@ -621,7 +640,7 @@ namespace acp
 				}
 				else
 				{
-					tmpa = in.getBits(2);
+					tmpa = in.getBits(1);
 					tmpb = in.getBits(2) + tmpa;
 				}
 
