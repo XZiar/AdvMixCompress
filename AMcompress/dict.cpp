@@ -648,6 +648,12 @@ namespace acp
 		return;
 	}
 
+	uint8_t getDictLen(uint16_t dID)
+	{
+		DictInfo &dinfo = DictList[dID];
+		return dinfo.len;
+	}
+
 
 	void dumpdict()
 	{

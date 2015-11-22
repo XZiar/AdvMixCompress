@@ -66,7 +66,7 @@ namespace acp
 				tmpret.type += 0x01;
 				tmpret.part_num = 3;
 				tmpret.part_len[2] = 1;
-				tmpret.part_data[2] = 0x1;
+				tmpret.part_data[2] = 0b1;
 			}
 			else
 			{
@@ -75,29 +75,77 @@ namespace acp
 				if (drep[a].offset < right_dis)
 				{
 					tmpa = drep[a].offset;
-					tmpret.part_data[2] = 0x1;
+					tmpret.part_data[2] = 0b01;
 					tmpb = right_dis - drep[a].offset;
 				}
 				else
 				{
 					tmpa = right_dis;
-					tmpret.part_data[2] = 0x0;
+					tmpret.part_data[2] = 0b00;
 					tmpb = drep[a].offset - right_dis;
 				}
 				//if (right_dis < 0)
 					//printf("\n\n\n");
-				if (tmpa < 16 && tmpb < 16)
-				{//mid
-					tmpret.type += 0x02;
-					tmplen += 9;
-					tmpret.part_num = 5;
-					tmpret.part_len[3] = 4;
-					tmpret.part_data[3] = tmpa;
-					tmpret.part_len[4] = 4;
-					tmpret.part_data[4] = tmpb;
+				if (drep[a].diclen > 32)
+				{
+					if (tmpa < 16 && tmpb < 16)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 9;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 4;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 4;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
+				else if (drep[a].diclen > 16)
+				{
+					if (tmpa < 8 && tmpb < 16)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 8;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 3;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 4;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
+				else if (drep[a].diclen > 8)
+				{
+					if (tmpa < 4 && tmpb < 8)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 6;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 2;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 3;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
 				}
 				else
-					continue;//uncodable
+				{
+					if (tmpa < 4 && tmpb < 4)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 5;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 2;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 2;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
 			}
 
 			//judge update
@@ -170,7 +218,7 @@ namespace acp
 			if (brep[a].objlen < 11)
 			{//short
 				tmpret.part_len[2] = 1;
-				tmpret.part_data[2] = 0x1;
+				tmpret.part_data[2] = 0b1;
 				tmpret.part_len[3] = 3;
 				tmpret.part_data[3] = brep[a].objlen - 3;
 			}
@@ -178,7 +226,7 @@ namespace acp
 			{//long
 				tmplen += 3;
 				tmpret.part_len[2] = 1;
-				tmpret.part_data[2] = 0x0;
+				tmpret.part_data[2] = 0b0;
 				tmpret.part_len[3] = 6;
 				tmpret.part_data[3] = brep[a].objlen - 3;
 			}
@@ -554,8 +602,31 @@ namespace acp
 			{
 				bool altype = in.getNext();
 				uint8_t tmpa, tmpb;
-				tmpa = in.getBits(4);
-				tmpb = in.getBits(4) + tmpa;
+				uint8_t dlen = getDictLen(op.dID);
+
+				if (dlen > 32)
+				{
+					tmpa = in.getBits(4);
+					tmpb = in.getBits(4) + tmpa;
+				}
+				else if (dlen > 16)
+				{
+					tmpa = in.getBits(3);
+					tmpb = in.getBits(4) + tmpa;
+				}
+				else if (dlen > 8)
+				{
+					tmpa = in.getBits(2);
+					tmpb = in.getBits(3) + tmpa;
+				}
+				else
+				{
+					tmpa = in.getBits(2);
+					tmpb = in.getBits(2) + tmpa;
+				}
+
+				//tmpa = in.getBits(4);
+				//tmpb = in.getBits(4) + tmpa;
 				if (altype)
 				{
 					op.offset = tmpa;
