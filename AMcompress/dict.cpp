@@ -15,6 +15,7 @@ namespace acp
 		//DictItem *pos;
 		uint16_t dnum;
 		uint8_t empty[2];
+		uint64_t tab;
 	};
 
 	struct DictIndex
@@ -169,7 +170,7 @@ namespace acp
 		return;
 	}
 
-	static inline void DictPre(DictItem &dicdata, DictIndex &dicidx, const uint8_t len)
+	static inline uint64_t DictPre(DictItem &dicdata, DictIndex &dicidx, const uint8_t len)
 	{
 		//memset(dicdata.jump, 0x7f, 64);
 		memset(dicidx.index, 0x7f, sizeof(DictIndex));
@@ -184,7 +185,15 @@ namespace acp
 			dicidx.index[dat] = a;
 		}
 		dicdata.jump[0] = dicdata.jump[1] = 0x7f;
-		return;
+		uint64_t tab = 0,
+			tmptab = 0x1Ui64 << 52;
+		for (uint8_t a = 53; a--;)
+		{
+			if (dicidx.index[a] != 0x7f)
+				tab += tmptab;
+			tmptab = tmptab >> 1;
+		}
+		return tab;
 	}
 
 	void DictAdd(const uint8_t len, const uint8_t data[])
@@ -209,7 +218,7 @@ namespace acp
 		
 		memset(dicdata.data, 0, 64);
 		memcpy(dicdata.data, data, len);
-		DictPre(dicdata, DictIdx[DictList[DictSize_Cur].dnum], len);
+		DictList[DictSize_Cur].tab = DictPre(dicdata, DictIdx[DictList[DictSize_Cur].dnum], len);
 		DictListSort(0, DictSize_Cur);
 		++DictSize_Cur;
 		return;
@@ -258,13 +267,13 @@ namespace acp
 			maxpos_next;
 		uint8_t dic_num_add[256],
 			dic_add_idx;
-		const uint8_t num_add = tNum * 8 - 3;
+		const uint8_t num_add = tNum * 4 - 3;
 
 		//init
 		const uint64_t mask = 0x1Ui64 << tID;
 		unique_lock <mutex> lck(mtx_FindThread_Wait);
 		memset(dic_num_add, 1, 256);
-		for (auto a = 7; a < 256; a += 8)
+		for (auto a = 3; a < 256; a += 4)
 		{
 			dic_num_add[a] = num_add;
 		}
@@ -315,7 +324,8 @@ namespace acp
 			#endif
 				//judge if len satisfy
 				if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
-					if(DictIdx[DictList[dic_num_next].dnum].index[chk_minval] != 0x7f)
+					//if(DictIdx[DictList[dic_num_next].dnum].index[chk_minval] != 0x7f)
+					if ((DictList[dic_num_next].tab >> chk_minval) & 0x1)
 						break;//get it
 			}
 			if (dic_num_next >= DictSize_Cur)
@@ -331,7 +341,7 @@ namespace acp
 				_mm_prefetch(p_prefetch, _MM_HINT_T0);//-data
 				_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//-jump
 				p_prefetch = (char *)&DictIdx[DictList[dic_num_next].dnum];//pos of the object DictIndex
-				_mm_prefetch(p_prefetch + 128 + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
+				_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
 				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xf8], _MM_HINT_T1);//next block info
 			}
@@ -341,7 +351,7 @@ namespace acp
 		{
 			//refresh chker
 			memcpy(&chkdata, inchk, sizeof(ChkItem));
-			dic_num_next = dic_num_cur = tID * 8;
+			dic_num_next = dic_num_cur = tID * 4;
 			dic_add_idx = 0;
 
 			//locate dict
