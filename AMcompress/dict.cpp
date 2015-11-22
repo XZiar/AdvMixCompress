@@ -43,6 +43,7 @@ namespace acp
 	_CRT_ALIGN(16) static uint16_t DictSize_Max,//max count of diction
 		DictSize_Cur;//current size of diction
 	_CRT_ALIGN(16) static uint64_t judgenum[65];//judge num
+	_CRT_ALIGN(16) static uint64_t idxjudge[55];//judge num
 
 
 	bool check()
@@ -80,11 +81,14 @@ namespace acp
 		uint8_t judgetmp[8];
 		memset(judgetmp, 0, 8);
 		memset(judgenum, 0xff, 520);
-		for (int a = 0; a < 8; a++)
+		for (int a = 0; a < 8; ++a)
 		{
 			judgenum[a] = *(uint64_t*)judgetmp;
 			judgetmp[a] = 0xff;
 		}
+		uint64_t ijtmp = 1;
+		for (auto a = 0; a < 53; ++a, ijtmp = ijtmp << 1)
+			idxjudge[a] = ijtmp;
 
 		return;
 	}
@@ -190,8 +194,9 @@ namespace acp
 		for (uint8_t a = 53; a--;)
 		{
 			if (dicidx.index[a] != 0x7f)
-				tab += tmptab;
-			tmptab = tmptab >> 1;
+				tab += idxjudge[a];
+				//tab += tmptab;
+			//tmptab = tmptab >> 1;
 		}
 		return tab;
 	}
@@ -322,10 +327,10 @@ namespace acp
 					db_log(2, db_str);
 				}
 			#endif
+				if (DictList[dic_num_next].tab&idxjudge[chk_minval])
 				//judge if len satisfy
-				if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
+					if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
 					//if(DictIdx[DictList[dic_num_next].dnum].index[chk_minval] != 0x7f)
-					if ((DictList[dic_num_next].tab >> chk_minval) & 0x1)
 						break;//get it
 			}
 			if (dic_num_next >= DictSize_Cur)
@@ -343,7 +348,7 @@ namespace acp
 				p_prefetch = (char *)&DictIdx[DictList[dic_num_next].dnum];//pos of the object DictIndex
 				_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
-				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xf8], _MM_HINT_T1);//next block info
+				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xfc], _MM_HINT_T1);//next block info
 			}
 		};
 		

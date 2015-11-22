@@ -1,6 +1,7 @@
 #pragma once
 
 #define DEBUG false
+#define DEBUG_BUF_CHK false
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_NON_CONFORMING_SWPRINTFS
 #define ifAVX2 true
