@@ -101,7 +101,7 @@ namespace acp
 					else
 						continue;//uncodable
 				}
-				else if (drep[a].diclen > 32)
+				else if (drep[a].diclen > 16)
 				{
 					if (tmpa < 8 && tmpb < 16)
 					{//mid
@@ -116,7 +116,7 @@ namespace acp
 					else
 						continue;//uncodable
 				}
-				else if (drep[a].diclen > 16)
+				/*else if (drep[a].diclen > 16)
 				{
 					if (tmpa < 8 && tmpb < 8)
 					{//mid
@@ -130,7 +130,7 @@ namespace acp
 					}
 					else
 						continue;//uncodable
-				}
+				}*/
 				else if (drep[a].diclen > 8)
 				{
 					if (tmpa < 4 && tmpb < 8)
@@ -623,15 +623,10 @@ namespace acp
 					tmpa = in.getBits(4);
 					tmpb = in.getBits(4) + tmpa;
 				}
-				else if (dlen > 32)
-				{
-					tmpa = in.getBits(3);
-					tmpb = in.getBits(4) + tmpa;
-				}
 				else if (dlen > 16)
 				{
 					tmpa = in.getBits(3);
-					tmpb = in.getBits(3) + tmpa;
+					tmpb = in.getBits(4) + tmpa;
 				}
 				else if (dlen > 8)
 				{
@@ -644,8 +639,6 @@ namespace acp
 					tmpb = in.getBits(2) + tmpa;
 				}
 
-				//tmpa = in.getBits(4);
-				//tmpb = in.getBits(4) + tmpa;
 				if (altype)
 				{
 					op.offset = tmpa;
