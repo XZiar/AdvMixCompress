@@ -17,9 +17,9 @@ namespace acp
 	CodeAns Code_TestDict(int8_t num, DictReport drep[])
 	{
 		_mm_prefetch((char*)drep, _MM_HINT_T0);
-#if DEBUG_thr 
+	#if DEBUG_thr 
 		db_log(L"CTD start\n");
-#endif
+	#endif
 		CodeAns ret, tmpret;
 		uint8_t tmplen;//for calc len(bit) that cost
 		ret.savelen = (int16_t)0x8000;
@@ -32,23 +32,32 @@ namespace acp
 			tmpret.dID = drep[a].dicID;
 			tmpret.srclen = drep[a].objlen;
 			tmpret.addr = drep[a].addr;
-			if (drep[a].dicID < 128)
+			if (drep[a].dicID < 64)
 			{//freq dict
 				tmpret.type = 0x10;
 				tmplen = 9;
-				tmpret.part_len[0] = 1;
-				tmpret.part_data[0] = 0x1;
-				tmpret.part_len[1] = 7;
+				tmpret.part_len[0] = 2;
+				tmpret.part_data[0] = 0b11;
+				tmpret.part_len[1] = 6;
 				tmpret.part_data[1] = drep[a].dicID;
+			}
+			else if(drep[a].dicID < 1088)
+			{//norm dict
+				tmpret.type = 0x20;
+				tmplen = 15;
+				tmpret.part_len[0] = 4;
+				tmpret.part_data[0] = 0b0011;
+				tmpret.part_len[1] = 10;
+				tmpret.part_data[1] = drep[a].dicID - 64;
 			}
 			else
 			{//rare dict
-				tmpret.type = 0x20;
-				tmplen = 21;
-				tmpret.part_len[0] = 5;
-				tmpret.part_data[0] = 0x3;
+				tmpret.type = 0x30;
+				tmplen = 19;
+				tmpret.part_len[0] = 4;
+				tmpret.part_data[0] = 0b0001;
 				tmpret.part_len[1] = 14;
-				tmpret.part_data[1] = drep[a].dicID - 128;
+				tmpret.part_data[1] = drep[a].dicID - 1088;
 			}
 
 			//judge align
@@ -57,7 +66,7 @@ namespace acp
 				tmpret.type += 0x01;
 				tmpret.part_num = 3;
 				tmpret.part_len[2] = 1;
-				tmpret.part_data[2] = 0x1;
+				tmpret.part_data[2] = 0b1;
 			}
 			else
 			{
@@ -66,29 +75,92 @@ namespace acp
 				if (drep[a].offset < right_dis)
 				{
 					tmpa = drep[a].offset;
-					tmpret.part_data[2] = 0x1;
+					tmpret.part_data[2] = 0b01;
 					tmpb = right_dis - drep[a].offset;
 				}
 				else
 				{
 					tmpa = right_dis;
-					tmpret.part_data[2] = 0x0;
+					tmpret.part_data[2] = 0b00;
 					tmpb = drep[a].offset - right_dis;
 				}
 				//if (right_dis < 0)
 					//printf("\n\n\n");
-				if (tmpa < 16 && tmpb < 16)
-				{//mid
-					tmpret.type += 0x02;
-					tmplen += 9;
-					tmpret.part_num = 5;
-					tmpret.part_len[3] = 4;
-					tmpret.part_data[3] = tmpa;
-					tmpret.part_len[4] = 4;
-					tmpret.part_data[4] = tmpb;
+				if (drep[a].diclen > 48)
+				{
+					if (tmpa < 16 && tmpb < 16)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 9;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 4;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 4;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
+				else if (drep[a].diclen > 16)
+				{
+					if (tmpa < 8 && tmpb < 16)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 8;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 3;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 4;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
+				/*else if (drep[a].diclen > 16)
+				{
+					if (tmpa < 8 && tmpb < 8)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 7;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 3;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 3;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}*/
+				else if (drep[a].diclen > 8)
+				{
+					if (tmpa < 4 && tmpb < 8)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 5;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 2;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 3;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
 				}
 				else
-					continue;//uncodable
+				{
+					if (tmpa < 2 && tmpb < 4)
+					{//mid
+						tmpret.type += 0x02;
+						tmplen += 4;
+						tmpret.part_num = 5;
+						tmpret.part_len[3] = 1;
+						tmpret.part_data[3] = tmpa;
+						tmpret.part_len[4] = 2;
+						tmpret.part_data[4] = tmpb;
+					}
+					else
+						continue;//uncodable
+				}
 			}
 
 			//judge update
@@ -96,9 +168,9 @@ namespace acp
 			if (ret.savelen < tmpret.savelen)
 				ret = tmpret;
 		}
-#if DEBUG_Thr
+	#if DEBUG_Thr
 		db_log(L"CTD finish\n");
-#endif
+	#endif
 		//ret.savelen = (int16_t)0x8000;
 		//ret.srclen = 0;
 		return ret;
@@ -106,9 +178,9 @@ namespace acp
 
 	CodeAns Code_TestBuffer(int8_t num, BufferReport brep[])
 	{
-#if DEBUG_Thr
+	#if DEBUG_Thr
 		db_log(L"CTB start\n");
-#endif
+	#endif
 		CodeAns ret, tmpret;
 		uint8_t tmplen;//for calc len(bit) that cost
 		ret.savelen = (int16_t)0x8000;
@@ -131,28 +203,27 @@ namespace acp
 				tmpret.type = 0x1;
 				tmplen = 15;
 				tmpret.part_len[0] = 2;
-				tmpret.part_data[0] = 0x1;
+				tmpret.part_data[0] = 0b10;
 				tmpret.part_len[1] = 9;
 				tmpret.part_data[1] = brep[a].offset - 3;
 			}
 			else
 			{
-				tmpret.part_len[0] = 4;
 				if (brep[a].offset < 16899)
 				{//norm
 					tmpret.type = 0x2;
-					tmplen = 22;
-					tmpret.part_len[0] = 4;
-					tmpret.part_data[0] = 0x3;
+					tmplen = 21;
+					tmpret.part_len[0] = 3;
+					tmpret.part_data[0] = 0b011;
 					tmpret.part_len[1] = 14;
 					tmpret.part_data[1] = brep[a].offset - 515;
 				}
 				else
 				{//far
 					tmpret.type = 0x3;
-					tmplen = 31;
-					tmpret.part_len[0] = 5;
-					tmpret.part_data[0] = 0x2;
+					tmplen = 30;
+					tmpret.part_len[0] = 4;
+					tmpret.part_data[0] = 0b0010;
 					tmpret.part_len[1] = 22;
 					tmpret.part_data[1] = brep[a].offset - 16899;
 				}
@@ -162,7 +233,7 @@ namespace acp
 			if (brep[a].objlen < 11)
 			{//short
 				tmpret.part_len[2] = 1;
-				tmpret.part_data[2] = 0x1;
+				tmpret.part_data[2] = 0b1;
 				tmpret.part_len[3] = 3;
 				tmpret.part_data[3] = brep[a].objlen - 3;
 			}
@@ -170,7 +241,7 @@ namespace acp
 			{//long
 				tmplen += 3;
 				tmpret.part_len[2] = 1;
-				tmpret.part_data[2] = 0x0;
+				tmpret.part_data[2] = 0b0;
 				tmpret.part_len[3] = 6;
 				tmpret.part_data[3] = brep[a].objlen - 3;
 			}
@@ -179,50 +250,50 @@ namespace acp
 			if (ret.savelen < tmpret.savelen)
 				ret = tmpret;
 		}
-#if DEBUG_Thr
+	#if DEBUG_Thr
 		db_log(L"CTB finish\n");
-#endif
+	#endif
 		return ret;
 	}
 
 	static inline void putRAW(bitWfile &out)
 	{
 		_mm_prefetch((char*)out_buffer, _MM_HINT_NTA);
-#if DEBUG
+	#if DEBUG
 		wchar_t db_str[120];
-#endif
-#if DEBUG_Thr
-		swprintf(db_str, L"^^output RAW $%d\n", ob_len); 
+	#endif
+	#if DEBUG_Thr
+		swprintf(db_str, L"^^output RAW $%d\n", ob_len);
 		db_log(db_str);
-#endif
+	#endif
 		if (ob_len < 9)//short RAW
 		{
-#if DEBUG_Com
+		#if DEBUG_Com
 			swprintf(db_str, L"RAW short len=%d\n", ob_len);
 			db_com(db_str, false);
-#endif
-			out.putBits(4, 0x2);
+		#endif
+			out.putBits(3, 0b010);
 			out.putBits(3, ob_len - 1);
 		}
-		else if(ob_len < 41)//normal RAW
+		else if (ob_len < 41)//normal RAW
 		{
-#if DEBUG_Com
+		#if DEBUG_Com
 			swprintf(db_str, L"RAW normal len=%d\n", ob_len);
 			db_com(db_str, false);
-#endif
-			out.putBits(5, 0x1);
+		#endif
+			out.putBits(5, 0b00001);
 			out.putBits(5, ob_len - 9);
 			//out.putBits(7, 0x0);
 		}
 		else//long RAW
 		{
-#if DEBUG_Com
+		#if DEBUG_Com
 			swprintf(db_str, L"RAW long len=%d\n", ob_len);
 			db_com(db_str, false);
-#endif
+		#endif
 			_mm_prefetch((char*)out_buffer + 64, _MM_HINT_NTA);
 			_mm_prefetch((char*)out_buffer + 128, _MM_HINT_NTA);
-			out.putBits(6, 0x1);
+			out.putBits(6, 0b000001);
 			out.putBits(8, ob_len - 41);
 		}
 		out.putChars(ob_len, out_buffer);
@@ -242,7 +313,8 @@ namespace acp
 			switch (CA.type & 0xf0)
 			{
 			case 0x10:tdat = L"freq"; break;
-			case 0x20:tdat = L"rare"; dID += 2112; break;
+			case 0x20:tdat = L"norm"; dID += 64; break;
+			case 0x30:tdat = L"rare"; dID += 1088; break;
 			default:tdat = L"err "; break;
 			}
 			switch (CA.type & 0xf)
@@ -253,7 +325,7 @@ namespace acp
 				uint8_t tmpa, tmpb;
 				tmpa = CA.part_data[3];
 				tmpb = CA.part_data[4] + tmpa;
-				swprintf(adat, L"mid  l=%d r=%d", altype ? tmpa : tmpb, altype ? tmpb : tmpa); break;
+				swprintf(adat, L"mid  l=%d r=%d", altype?tmpa:tmpb, altype?tmpb:tmpa); break;
 			default:wcscat(adat, L"err "); break;
 			}
 			swprintf(str, L"DIC %s id=%d %s\n", tdat, dID, adat);
@@ -275,30 +347,30 @@ namespace acp
 
 	static inline void putCA(bitWfile &out, CodeAns &CA)
 	{
-#if DEBUG
+	#if DEBUG
 		wchar_t db_str[120];
-#endif
-#if DEBUG_Thr
+	#endif
+	#if DEBUG_Thr
 		swprintf(db_str, L"^^output CA $%d\n", ob_len);
 		db_log(db_str);
-#endif
+	#endif
 		for (auto a = 0; a < CA.part_num; ++a)
 		{
 			out.putBits(CA.part_len[a], CA.part_data[a]);
 		}
-#if DEBUG_Com
+	#if DEBUG_Com
 		showCA(CA, db_str);
 		uint64_t ret = db_com(db_str, false);
-#endif
+	#endif
 		return;
 	}
 
 	static inline void putEnd(bitWfile &out)
 	{
 		out.putBits(7, 0x1);
-#if DEBUG
+	#if DEBUG
 		db_com(L"END\n", false);
-#endif
+	#endif
 		return;
 	}
 
@@ -311,14 +383,14 @@ namespace acp
 		op.op = 0;
 
 		cv_Coder_Ready.notify_all();
-#if DEBUG_Thr
+	#if DEBUG_Thr
 		db_log(L"Coder_thr notify.\n");
-#endif
+	#endif
 
 		while (true)
 		{
 			//give up the mutex to wake up upper thread
-			cv_Coder_Use.wait(lck_CoderUse, [&] {return op.op != 0; });
+			cv_Coder_Use.wait(lck_CoderUse, [&] { return op.op != 0; });
 			//waked up from upper-thread
 				//#if DEBUG { swprintf(db_str, L"Coder_thr wake.\n"); db_log(db_str);}
 
@@ -391,14 +463,14 @@ namespace acp
 			putEnd(out);
 			break;
 		}
-	return;
+		return;
 	}
 
 	bool DeCoder(bitRfile &in, DecoderOP &op)
 	{
-#if DEBUG
+	#if DEBUG
 		wchar_t db_str[120];
-#endif
+	#endif
 		wchar_t *type = L"empty";
 		if (in.eof())//end
 		{
@@ -407,63 +479,72 @@ namespace acp
 		}
 
 		if (in.getNext())
-		{
-			//freq dict
-			op.op = 0x2;
-			type = L"freq";
-			op.dID = in.getBits(7);
-		}
-		else
-		{
+		{//1@
 			if (in.getNext())
+			{
+				//freq dict
+				op.op = 0x2;
+				type = L"freq";
+				op.dID = in.getBits(6);
+			}
+			else
 			{
 				//near buffer
 				op.op = 0x3;
 				type = L"near";
 				op.offset = in.getBits(9) + 3;
 			}
-			else
-			{
+		}
+		else
+		{//1#
+			if (in.getNext())
+			{//2@
 				if (in.getNext())
 				{
-					//short RAW and norm buffer
-					if (in.getNext())
-					{
-						//norm buffer
-						op.op = 0x3;
-						type = L"norm";
-						op.offset = in.getBits(14) + 515;
-					}
-					else
-					{
-						//short RAW
-						op.op = 0x1;
-						op.len = in.getBits(3) + 1;
-						type = L"short";
-					}
+					//norm buffer
+					op.op = 0x3;
+					type = L"norm";
+					op.offset = in.getBits(14) + 515;
 				}
 				else
 				{
+					//short RAW
+					op.op = 0x1;
+					op.len = in.getBits(3) + 1;
+					type = L"short";
+				}
+			}
+			else
+			{//2#
+				if (in.getNext())
+				{//3@
+					//norm dict and far buffer
 					if (in.getNext())
 					{
-						//rare dict and far buffer
-						if (in.getNext())
-						{
-							//rare dict
-							op.op = 0x2;
-							type = L"rare";
-							op.dID = in.getBits(14) + 128;
-						}
-						else
-						{
-							//far buffer
-							op.op = 0x3;
-							type = L"far ";
-							op.offset = in.getBits(22) + 16899;
-						}
+						//norm dict
+						op.op = 0x2;
+						type = L"norm";
+						op.dID = in.getBits(10) + 64;
 					}
 					else
 					{
+						//far buffer
+						op.op = 0x3;
+						type = L"far ";
+						op.offset = in.getBits(22) + 16899;
+					}
+				}
+				else
+				{//3#
+					if (in.getNext())
+					{
+						//rare dict
+						op.op = 0x2;
+						type = L"rare";
+						op.dID = in.getBits(14) + 1088;
+					}
+					else
+					{//4#
 						//RAW or command
 						if (in.getNext())
 						{
@@ -473,7 +554,7 @@ namespace acp
 							type = L"normal";
 						}
 						else
-						{
+						{//5#
 							//long RAW or command
 							if (in.getNext())
 							{
@@ -483,14 +564,14 @@ namespace acp
 								type = L"normal";
 							}
 							else
-							{
+							{//6#
 								//command
 								if (in.getNext())
 								{
 									//end
-#if DEBUG
+								#if DEBUG
 									db_com(L"END\n", true);
-#endif
+								#endif
 									op.op = 0xff;
 									return false;
 								}
@@ -516,67 +597,87 @@ namespace acp
 		{
 		case 0x1://RAW
 			in.getChars(op.len, op.data);
-#if DEBUG
+		#if DEBUG
 			swprintf(db_str, L"RAW %s len=%d\n", type, op.len);
-#endif
+		#endif
 			break;
 		case 0x2://dict
 			//judge align
+		{
+			if (in.getNext())
 			{
-				if (in.getNext())
+				//full dict
+				op.len = 0xff;
+				op.offset = 0x0;
+			#if DEBUG
+				swprintf(db_str, L"DIC %s id=%d full\n", type, op.dID);
+			#endif
+			}
+			else
+			{
+				bool altype = in.getNext();
+				uint8_t tmpa, tmpb;
+				uint8_t dlen = getDictLen(op.dID);
+				if (dlen > 48)
 				{
-					//full dict
-					op.len = 0xff;
-					op.offset = 0x0;
-#if DEBUG
-					swprintf(db_str, L"DIC %s id=%d full\n", type, op.dID);
-#endif
-				}
-				else
-				{
-					bool altype = in.getNext();
-					uint8_t tmpa, tmpb;
 					tmpa = in.getBits(4);
 					tmpb = in.getBits(4) + tmpa;
-					if (altype)
-					{
-						op.offset = tmpa;
-						op.len = 0xff - tmpb;
-					}
-					else
-					{
-						op.offset = tmpb;
-						op.len = 0xff - tmpa;
-					}
-#if DEBUG
-					swprintf(db_str, L"DIC %s id=%d mid  l=%d r=%d\n", type, op.dID, op.offset, 0xff - op.len);
-#endif
 				}
-			}
-			break;
-		case 0x3://buffer
-			{
-				if (in.getNext())
+				else if (dlen > 16)
 				{
-					//short buffer
-					op.len = in.getBits(3) + 3;
+					tmpa = in.getBits(3);
+					tmpb = in.getBits(4) + tmpa;
+				}
+				else if (dlen > 8)
+				{
+					tmpa = in.getBits(2);
+					tmpb = in.getBits(3) + tmpa;
 				}
 				else
 				{
-					//long buffer
-					op.len = in.getBits(6) + 3;
+					tmpa = in.getBits(1);
+					tmpb = in.getBits(2) + tmpa;
 				}
-#if DEBUG
-				swprintf(db_str, L"BUF %s off=%d len=%d\n", type, op.offset, op.len);
-#endif
+
+				if (altype)
+				{
+					op.offset = tmpa;
+					op.len = 0xff - tmpb;
+				}
+				else
+				{
+					op.offset = tmpb;
+					op.len = 0xff - tmpa;
+				}
+			#if DEBUG
+				swprintf(db_str, L"DIC %s id=%d mid  l=%d r=%d\n", type, op.dID, op.offset, 0xff - op.len);
+			#endif
 			}
-			break;
+		}
+		break;
+		case 0x3://buffer
+		{
+			if (in.getNext())
+			{
+				//short buffer
+				op.len = in.getBits(3) + 3;
+			}
+			else
+			{
+				//long buffer
+				op.len = in.getBits(6) + 3;
+			}
+		#if DEBUG
+			swprintf(db_str, L"BUF %s off=%d len=%d\n", type, op.offset, op.len);
+		#endif
+		}
+		break;
 		default:
 			break;
 		}
-#if DEBUG
+	#if DEBUG
 		db_com(db_str, true);
-#endif
+	#endif
 
 		return true;
 	}

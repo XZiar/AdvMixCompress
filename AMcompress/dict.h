@@ -43,4 +43,5 @@ namespace acp
 	uint8_t DictGet(const uint16_t dID, uint8_t offset, uint8_t &len, uint8_t data[]);
 	void FindInDict(const int8_t tCount, DictOP &op, DictReport drep[], ChkItem &chkdata);
 	void dumpdict();
+	uint8_t getDictLen(uint16_t dID);
 }
