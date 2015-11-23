@@ -284,9 +284,9 @@ namespace acp
 		}
 		p_prefetch = (char*)dic_num_add;
 		_mm_prefetch((char*)p_prefetch, _MM_HINT_T0);
-		_mm_prefetch((char*)p_prefetch + 64, _MM_HINT_T0);
+		/*_mm_prefetch((char*)p_prefetch + 64, _MM_HINT_T0);
 		_mm_prefetch((char*)p_prefetch + 128, _MM_HINT_T0);
-		_mm_prefetch((char*)p_prefetch + 192, _MM_HINT_T0);
+		_mm_prefetch((char*)p_prefetch + 192, _MM_HINT_T0);*/
 #if DEBUG_Thr
 		wchar_t msg[6][24];
 
@@ -323,7 +323,9 @@ namespace acp
 		auto func_findnext = [&]
 		{
 			//for (dic_num_next += dic_num_add[dic_add_idx++]; dic_num_next < DictSize_Cur; dic_num_next += dic_num_add[dic_add_idx++])
-			for (; (dic_num_next += dic_num_add[dic_add_idx++]) < DictSize_Cur;)
+			//for (; (dic_num_next += dic_num_add[dic_add_idx++]) < DictSize_Cur;)
+			//for (; (dic_num_next += (++dic_add_idx & 0x3?1:3)) < DictSize_Cur;)//slow
+			for (; (dic_num_next += dic_num_add[(dic_add_idx++) & 0xf]) < DictSize_Cur;)
 			{
 			#if DEBUG_BUF_CHK
 				wchar_t db_str[64];
@@ -333,7 +335,8 @@ namespace acp
 					db_log(2, db_str);
 				}
 			#endif
-				if (DictList[dic_num_next].tab&idxjudge[chk_minval])
+				//if (DictList[dic_num_next].tab&idxjudge[chk_minval])
+				if ((DictList[dic_num_next].tab >> chk_minval) & 0x1)
 				//judge if len satisfy
 					if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
 					//if(DictIdx[DictList[dic_num_next].dnum].index[chk_minval] != 0x7f)
