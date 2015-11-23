@@ -282,6 +282,11 @@ namespace acp
 		{
 			dic_num_add[a] = num_add;
 		}
+		p_prefetch = (char*)dic_num_add;
+		_mm_prefetch((char*)p_prefetch, _MM_HINT_T0);
+		_mm_prefetch((char*)p_prefetch + 64, _MM_HINT_T0);
+		_mm_prefetch((char*)p_prefetch + 128, _MM_HINT_T0);
+		_mm_prefetch((char*)p_prefetch + 192, _MM_HINT_T0);
 #if DEBUG_Thr
 		wchar_t msg[6][24];
 
@@ -317,7 +322,8 @@ namespace acp
 		//main part
 		auto func_findnext = [&]
 		{
-			for (dic_num_next += dic_num_add[dic_add_idx++]; dic_num_next < DictSize_Cur; dic_num_next += dic_num_add[dic_add_idx++])
+			//for (dic_num_next += dic_num_add[dic_add_idx++]; dic_num_next < DictSize_Cur; dic_num_next += dic_num_add[dic_add_idx++])
+			for (; (dic_num_next += dic_num_add[dic_add_idx++]) < DictSize_Cur;)
 			{
 			#if DEBUG_BUF_CHK
 				wchar_t db_str[64];
@@ -348,7 +354,7 @@ namespace acp
 				p_prefetch = (char *)&DictIdx[DictList[dic_num_next].dnum];//pos of the object DictIndex
 				_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
-				_mm_prefetch((char*)&DictList[(dic_num_next + dic_num_add[dic_add_idx + 1]) & 0xfc], _MM_HINT_T1);//next block info
+				_mm_prefetch((char*)(&DictList) + ((uint32_t)(dic_num_next) << 4 & 0xfffc0), _MM_HINT_T1);//next block info
 			}
 		};
 		

@@ -51,6 +51,7 @@ public:
 struct cmder
 {
 	bool debug;
+	bool is_use_dict;
 	uint16_t dictcount;
 	uint16_t bufcount;
 	int8_t thread;

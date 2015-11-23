@@ -3,11 +3,11 @@
 #include "compress.h"
 #include "uncompress.h"
 
-#define VER 1511221556Ul
+#define VER 1511240030Ul
 
 using namespace acp;
 
-enum class cl :int8_t { comp, uncomp, debug, fname, bufsize, dicsize, wrong, thread, vtune };
+enum class cl :int8_t { comp, uncomp, debug, fname, bufsize, dicsize, wrong, thread, vtune, nodict };
 vector<ParseTable> ptab
 {
 	{ L"",(int8_t)cl::wrong,'n' },
@@ -19,6 +19,7 @@ vector<ParseTable> ptab
 	{ L"buf",(int8_t)cl::bufsize,'i' },
 	{ L"dic",(int8_t)cl::dicsize,'i' },
 	{ L"vtune",(int8_t)cl::vtune,'n' },
+	{ L"nodict",(int8_t)cl::nodict,'n' }
 };
 
 
@@ -134,6 +135,7 @@ int wmain(int argc, wchar_t *argv[])
 	bool isWait = true;
 
 	//parse command
+	setting.is_use_dict = true;
 	for (auto a = 0; a < p.size(); a++)
 	{
 		switch (p.com(a))
@@ -169,6 +171,10 @@ int wmain(int argc, wchar_t *argv[])
 		case (int8_t)cl::vtune:
 			wprintf(L"cmd %d :VTUNE\n", a);
 			isWait = false;
+			break;
+		case (int8_t)cl::nodict:
+			wprintf(L"cmd %d :DISABLE DICT\n", a);
+			setting.is_use_dict = false;
 			break;
 		case (int8_t)cl::wrong:
 			wprintf(L"Error command : %ls\n", p.dataS(a).c_str());
