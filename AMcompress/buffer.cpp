@@ -134,11 +134,11 @@ namespace acp
 		//fill this block
 		for (auto a = Buf_Pos_cur & BLKMASK; left_len--; ++a)
 		{
-			uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
-			//chkdat.minvalD = (uint16_t)chkdat.data[chkdat.minposD - 2] * 169 + chkdat.data[chkdat.minposD - 2] * 13 + chkdat.minval;
-			tmpdat += buffer[Buf_Pos_cur++];
-			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat % 769];
-			BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
+			//auto tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
+			//tmpdat += buffer[Buf_Pos_cur++];
+			auto tmp = hash(&buffer[(int32_t)Buf_Pos_cur++]);
+			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmp];
+			BlkInfo[Buf_Blk_cur].hash[tmp] = a;
 		}
 
 		//fill next block
@@ -159,12 +159,11 @@ namespace acp
 			}
 			for (auto a = 0; a < left_len; ++a)
 			{
-				uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
-				//uint16_t tmpdat = (uint16_t)(buffer[(int32_t)Buf_Pos_cur - 1] >> 1) * (buffer[(int32_t)Buf_Pos_cur - 2] >> 1);
-				tmpdat += buffer[Buf_Pos_cur++];
-				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat % 769];
-				//BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = (tmpdat & 0x7ff) >> 1];
-				BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
+				//uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
+				//tmpdat += buffer[Buf_Pos_cur++];
+				auto tmp = hash(&buffer[(int32_t)Buf_Pos_cur++]);
+				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmp];
+				BlkInfo[Buf_Blk_cur].hash[tmp] = a;
 			}
 		}
 		
@@ -200,7 +199,7 @@ namespace acp
 			c_thr_min_next;//min border for this cycle
 		uint8_t chkleft;//left count of checker
 		uint16_t &chk_minvalD = chkdata.minvalD;
-		uint8_t	&chk_minposD = chkdata.minposD;
+		uint8_t	&chk_minpos = chkdata.minpos;
 		int16_t objpos,
 			maxpos,
 			maxpos_next;
@@ -297,7 +296,7 @@ namespace acp
 
 			//prepare border
 			c_thr_min_next = c_thr_left_next - 64;
-			maxpos_next = BLKSIZE + chk_minposD - chkdata.curlen;
+			maxpos_next = BLKSIZE + chk_minpos - chkdata.curlen;
 
 		};
 		
@@ -319,9 +318,9 @@ namespace acp
 			c_thr_left = blk_num * BLKSIZE;
 			c_thr_min = c_thr_left - 64;
 			if(Buf_Blk_cur == blk_num)
-				maxpos = (Buf_Pos_cur & BLKMASK) + chk_minposD - chkdata.curlen;
+				maxpos = (Buf_Pos_cur & BLKMASK) + chk_minpos - chkdata.curlen;
 			else
-				maxpos = BLKSIZE + chk_minposD - chkdata.curlen;
+				maxpos = BLKSIZE + chk_minpos - chkdata.curlen;
 
 			func_catchnext();
 			//prefetch
@@ -354,7 +353,7 @@ namespace acp
 				}
 				while (objpos > maxpos)
 					objpos = blkinf->jump[objpos];
-				bufspos = c_thr_left + objpos - chk_minposD;//get real start pos
+				bufspos = c_thr_left + objpos - chk_minpos;//get real start pos
 				//if objpos = 0x8080,bufspos must be lefter than c_thr_left more than 128
 				//so it must < c_thr_min
 				if (bufspos < c_thr_min)//no matching word
@@ -381,7 +380,7 @@ namespace acp
 					{//not match
 						objpos = blkinf->jump[objpos];//get next pos
 						
-						bufspos = c_thr_left + objpos - chk_minposD;//get real start pos
+						bufspos = c_thr_left + objpos - chk_minpos;//get real start pos
 
 						if (bufspos < c_thr_min)//outside the block OR beyond buffer pool
 							break;
@@ -432,7 +431,7 @@ namespace acp
 					//add chk suc
 					if (blk_num == Buf_Blk_cur)
 					{
-						maxpos = (Buf_Pos_cur & BLKMASK) + chk_minposD - chkdata.curlen;
+						maxpos = (Buf_Pos_cur & BLKMASK) + chk_minpos - chkdata.curlen;
 						if (maxpos < 0)//no enough space in this block
 						{
 							if (blk_num_next < Buf_Blk_start)//no next
@@ -446,7 +445,7 @@ namespace acp
 						}
 					}
 					else
-						maxpos = BLKSIZE + chk_minposD - chkdata.curlen;
+						maxpos = BLKSIZE + chk_minpos - chkdata.curlen;
 				}
 				else
 				{

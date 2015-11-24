@@ -66,5 +66,13 @@ void db_log();
 
 void showdata(const uint8_t *inaddr, wchar_t *outaddr, const uint8_t len);
 
+
+#if DEBUG_Thr
+	#define log_thr(expr) db_log(expr);
+#else
+	#define log_thr(expr) ((void)0)
+#endif
+
+
 wstring s2ws(const string &in);
 void s2ws(const char* in, wchar_t* out);

@@ -180,11 +180,9 @@ namespace acp
 		memset(dicidx.index, 0x7f, sizeof(DictIndex));
 		for (uint8_t a = len - 1; a > 1;--a)
 		{
-			//uint8_t dat = dicdata.data[a];
-			//uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
-			//tmpdat += buffer[Buf_Pos_cur++];
-			uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
-			uint8_t dat = (tmpdat % 769) % 53;
+			//uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
+			auto tmp = hash(&dicdata.data[a]);
+			uint8_t dat = tmp % 53;
 			dicdata.jump[a] = dicidx.index[dat];
 			dicidx.index[dat] = a;
 		}
@@ -195,8 +193,6 @@ namespace acp
 		{
 			if (dicidx.index[a] != 0x7f)
 				tab += idxjudge[a];
-				//tab += tmptab;
-			//tmptab = tmptab >> 1;
 		}
 		return tab;
 	}
@@ -265,8 +261,8 @@ namespace acp
 		//uint8_t &chk_minval = chkdata.minval,
 			//&chk_minpos = chkdata.minpos;
 		//uint16_t &chk_minvalD = chkdata.minvalD;
-		uint8_t	&chk_minpos = chkdata.minposD;
-		uint8_t &chk_minval = chkdata.minvalDD;
+		uint8_t	&chk_minpos = chkdata.minpos;
+		uint8_t &chk_minval = chkdata.minval;
 		int8_t dicspos,//real start pos of dict
 			maxpos,//max find pos(start) in the dict
 			maxpos_next;
