@@ -57,6 +57,10 @@ namespace acp
 			return 0xff;
 		chkdat.curlen = count;
 		memset(chkdat.counts, 0, 256);
+		//memset(chkdat.counts, 0, 128);
+
+
+
 		for (uint8_t a = 0; a < count; ++a)
 		{
 			++chkdat.counts[chkdat.data[a]];
@@ -76,7 +80,7 @@ namespace acp
 		}
 		if (chkdat.minpos < 2)
 		{
-			chkdat.minposD = 3;
+			chkdat.minposD = 2;
 			chkdat.minvalD = (uint16_t)chkdat.minval * 169 + chkdat.data[1] * 13 + chkdat.data[2];
 			chkdat.minvalD = chkdat.minvalD % 769;
 		}

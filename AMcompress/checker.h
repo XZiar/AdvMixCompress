@@ -15,7 +15,7 @@ namespace acp
 		uint8_t minvalDD;//current bit value of min-appear
 		uint8_t empty[7];
 		uint8_t counts[256];
-		
+		//uint16_t counts[64];
 	};
 
 	uint8_t Chk_inc(ChkItem &chkdat);
