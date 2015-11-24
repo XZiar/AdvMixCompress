@@ -280,9 +280,6 @@ namespace acp
 		}
 		p_prefetch = (char*)dic_num_add;
 		_mm_prefetch((char*)p_prefetch, _MM_HINT_T0);
-		/*_mm_prefetch((char*)p_prefetch + 64, _MM_HINT_T0);
-		_mm_prefetch((char*)p_prefetch + 128, _MM_HINT_T0);
-		_mm_prefetch((char*)p_prefetch + 192, _MM_HINT_T0);*/
 #if DEBUG_Thr
 		wchar_t msg[6][24];
 
@@ -335,7 +332,6 @@ namespace acp
 				if ((DictList[dic_num_next].tab >> chk_minval) & 0x1)
 				//judge if len satisfy
 					if ((maxpos_next = DictList[dic_num_next].len - chkdata.curlen) >= 0)
-					//if(DictIdx[DictList[dic_num_next].dnum].index[chk_minval] != 0x7f)
 						break;//get it
 			}
 			if (dic_num_next >= DictSize_Cur)
@@ -356,7 +352,15 @@ namespace acp
 				_mm_prefetch((char*)(&DictList) + ((uint32_t)(dic_num_next) << 4 & 0xfffc0), _MM_HINT_T1);//next block info
 			}
 		};
-		
+		auto func_tonext = [&]
+		{
+			dicinfo = &DictList[dic_num_cur = dic_num_next];
+			dicdata = &Diction[dicinfo->dnum];
+			dicidx = &DictIdx[dicinfo->dnum];
+			maxpos = maxpos_next;
+			func_findnext();
+		};
+
 		while (true)//run one cycle at a FindInDict
 		{
 			//refresh chker
@@ -380,9 +384,6 @@ namespace acp
 			maxpos = dicinfo->len - chkdata.curlen;
 			func_findnext();
 
-
-
-
 			while(dic_num_cur < DictSize_Cur)//loop when finish a DictItem,fail OR suc(add chk)
 			{
 				findpos = 0x7f;
@@ -394,12 +395,8 @@ namespace acp
 				{
 					if (dic_num_next == 0xffff)//no next
 						break;
-					dicinfo = &DictList[dic_num_cur = dic_num_next];
-					dicdata = &Diction[dicinfo->dnum];
-					dicidx = &DictIdx[dicinfo->dnum];
-					maxpos = maxpos_next;
-					func_findnext();
 
+					func_tonext();
 					continue;
 				}
 				while (objpos < chk_minpos)
@@ -411,12 +408,8 @@ namespace acp
 				{
 					if (dic_num_next == 0xffff)//no next
 						break;
-					dicinfo = &DictList[dic_num_cur = dic_num_next];
-					dicdata = &Diction[dicinfo->dnum];
-					dicidx = &DictIdx[dicinfo->dnum];
-					maxpos = maxpos_next;
-					func_findnext();
-					
+
+					func_tonext();
 					continue;
 				}
 
@@ -475,24 +468,17 @@ namespace acp
 					{//current failed
 						if (dic_num_next == 0xffff)//no next
 							break;
-						dicinfo = &DictList[dic_num_cur = dic_num_next];
-						dicdata = &Diction[dicinfo->dnum];
-						dicidx = &DictIdx[dicinfo->dnum];
-						maxpos = maxpos_next;
-						func_findnext();
-
+						
+						func_tonext();
+						continue;
 					}
 				}
 				else//not find it
 				{
 					if (dic_num_next == 0xffff)//no next
 						break;
-					dicinfo = &DictList[dic_num_cur = dic_num_next];
-					dicdata = &Diction[dicinfo->dnum];
-					dicidx = &DictIdx[dicinfo->dnum];
-					maxpos = maxpos_next;
-					func_findnext();
-
+					
+					func_tonext();
 					continue;
 				}
 			}
