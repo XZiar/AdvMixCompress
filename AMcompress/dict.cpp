@@ -177,16 +177,27 @@ namespace acp
 	static inline uint64_t DictPre(DictItem &dicdata, DictIndex &dicidx, const uint8_t len)
 	{
 		//memset(dicdata.jump, 0x7f, 64);
+		uint8_t *dic_dat, *dic_jmp;
+		if (len > 32)
+		{
+			dic_dat = dicdata.L.data;
+			dic_jmp = dicdata.L.jump;
+		}
+		else
+		{
+			dic_dat = dicdata.S.data;
+			dic_jmp = dicdata.S.jump;
+		}
 		memset(dicidx.index, 0x7f, sizeof(DictIndex));
 		for (uint8_t a = len - 1; a > 1;--a)
 		{
 			//uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
-			auto tmp = hash(&dicdata.data[a]);
+			auto tmp = hash(&dic_dat[a]);
 			uint8_t dat = tmp % 53;
-			dicdata.jump[a] = dicidx.index[dat];
+			dic_jmp[a] = dicidx.index[dat];
 			dicidx.index[dat] = a;
 		}
-		dicdata.jump[0] = dicdata.jump[1] = 0x7f;
+		dic_jmp[0] = dic_jmp[1] = 0x7f;
 		uint64_t tab = 0,
 			tmptab = 0x1Ui64 << 52;
 		for (uint8_t a = 53; a--;)
@@ -217,8 +228,8 @@ namespace acp
 		db_log(1, db_str);
 #endif
 		
-		memset(dicdata.data, 0, 64);
-		memcpy(dicdata.data, data, len);
+		memset(dicdata.L.data, 0, 64);
+		memcpy(dicdata.L.data, data, len);
 		DictList[DictSize_Cur].tab = DictPre(dicdata, DictIdx[DictList[DictSize_Cur].dnum], len);
 		DictListSort(0, DictSize_Cur);
 		++DictSize_Cur;
@@ -238,7 +249,7 @@ namespace acp
 		//DictItem &tmp = Diction[DictList[DictSize_Cur].dpos];
 		//memcpy(data, tmp.data + offset, len);
 		DictItem &dicdata = Diction[DictList[dID].dnum];
-		memcpy(data, dicdata.data + offset, len);
+		memcpy(data, dicdata.L.data + offset, len);
 		DictUse(dID, len);
 		return 0x0;
 	}
@@ -249,6 +260,8 @@ namespace acp
 		DictItem *dicdata;
 		DictInfo *dicinfo;
 		DictIndex *dicidx;
+		uint8_t *dic_dat,
+			*dic_jmp;
 		uint64_t *p_dic_cur,//current pos of dic_data
 			*p_chk_cur;//current pos of chker_data
 		uint16_t dic_num_cur,
@@ -345,11 +358,12 @@ namespace acp
 				//prefetch next DictItem
 				p_prefetch = (char *)&Diction[DictList[dic_num_next].dnum];//pos of next object DictItem
 				_mm_prefetch(p_prefetch, _MM_HINT_T0);//-data
-				_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//-jump
+				//_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//-jump
 				p_prefetch = (char *)&DictIdx[DictList[dic_num_next].dnum];//pos of the object DictIndex
 				_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
-				_mm_prefetch((char*)(&DictList) + ((uint32_t)(dic_num_next) << 4 & 0xfffc0), _MM_HINT_T1);//next block info
+				p_prefetch = ((char*)&DictList[(dic_num_next + num_add) & 0xfffc]);
+				_mm_prefetch(p_prefetch, _MM_HINT_T0);//next block info
 			}
 		};
 		auto func_tonext = [&]
@@ -358,7 +372,19 @@ namespace acp
 			dicdata = &Diction[dicinfo->dnum];
 			dicidx = &DictIdx[dicinfo->dnum];
 			maxpos = maxpos_next;
-			func_findnext();
+			if (dicinfo->len > 32)
+			{
+				dic_dat = dicdata->L.data;
+				dic_jmp = dicdata->L.jump;
+				_mm_prefetch((char*)dic_jmp, _MM_HINT_T0);//-jump
+			}
+			else
+			{
+				dic_dat = dicdata->S.data;
+				dic_jmp = dicdata->S.jump;
+			}
+			//dic_dat = dicdata->data;
+			//dic_jmp = dicdata->jump;
 		};
 
 		while (true)//run one cycle at a FindInDict
@@ -369,9 +395,10 @@ namespace acp
 			dic_add_idx = 0;
 
 			//locate dict
-			dicinfo = &DictList[dic_num_cur];
+			/*dicinfo = &DictList[dic_num_cur];
 			dicdata = &Diction[dicinfo->dnum];
-			dicidx = &DictIdx[dicinfo->dnum];
+			dicidx = &DictIdx[dicinfo->dnum];*/
+			func_tonext();
 
 			//prefetch current
 			p_prefetch = (char *)dicdata;//pos of the object DictItem
@@ -397,10 +424,11 @@ namespace acp
 						break;
 
 					func_tonext();
+					func_findnext();
 					continue;
 				}
 				while (objpos < chk_minpos)
-					objpos = dicdata->jump[objpos];
+					objpos = dic_jmp[objpos];
 				//maxpos must < 64
 				//when objpos = 0x7f,dicspos > 64 so dicspos must > maxpos
 				//when objpos != 0x7f(<64) need to judge
@@ -410,10 +438,11 @@ namespace acp
 						break;
 
 					func_tonext();
+					func_findnext();
 					continue;
 				}
 
-				p_dic_cur = (uint64_t*)(dicdata->data + dicspos);
+				p_dic_cur = (uint64_t*)(dic_dat + dicspos);
 				p_chk_cur = (uint64_t*)chkdata.data;
 				chkleft = chkdata.curlen;
 
@@ -422,11 +451,11 @@ namespace acp
 					//judge part
 					if ( ((*p_dic_cur) ^ (*p_chk_cur)) & judgenum[chkleft])
 					{//not match
-						objpos = dicdata->jump[objpos];//get next pos
+						objpos = dic_jmp[objpos];//get next pos
 						dicspos = objpos - chk_minpos;//get real start pos
 						if (dicspos > maxpos)//no enough space to match
 							break;
-						p_dic_cur = (uint64_t*)(dicdata->data + dicspos);
+						p_dic_cur = (uint64_t*)(dic_dat + dicspos);
 						if (chkleft != chkdata.curlen)
 						{//in a match, reset chk pos
 							p_chk_cur = (uint64_t*)chkdata.data;
@@ -454,7 +483,7 @@ namespace acp
 				if(findpos != 0x7f)//find it
 				{
 					dicrep.isFind = 0xff;
-					dicrep.addr = &dicdata->data[findpos];
+					dicrep.addr = &dic_dat[findpos];
 					dicrep.dicID = dic_num_cur;
 					dicrep.diclen = dicinfo->len;
 					dicrep.offset = findpos;
@@ -470,6 +499,7 @@ namespace acp
 							break;
 						
 						func_tonext();
+						func_findnext();
 						continue;
 					}
 				}
@@ -479,6 +509,7 @@ namespace acp
 						break;
 					
 					func_tonext();
+					func_findnext();
 					continue;
 				}
 			}

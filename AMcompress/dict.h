@@ -3,12 +3,19 @@
 namespace acp
 {
 	struct ChkItem;
-	struct DictItem
+	union DictItem
 	{
-		uint8_t data[64];
-		uint8_t jump[64];
-		//uint8_t index[256];
-	};
+		struct
+		{
+			uint8_t data[64];
+			uint8_t jump[64];
+		}L;
+		struct
+		{
+			uint8_t data[32];
+			uint8_t jump[32];
+		}S;
+	}; 
 
 	struct DictReport
 	{
