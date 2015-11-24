@@ -265,8 +265,8 @@ namespace acp
 		//uint8_t &chk_minval = chkdata.minval,
 			//&chk_minpos = chkdata.minpos;
 		//uint16_t &chk_minvalD = chkdata.minvalD;
-		uint8_t	&chk_minpos = chkdata.minposD;
-		uint8_t &chk_minval = chkdata.minvalDD;
+		uint8_t	&chk_minpos = chkdata.minpos;
+		uint8_t &chk_minval = chkdata.minval;
 		int8_t dicspos,//real start pos of dict
 			maxpos,//max find pos(start) in the dict
 			maxpos_next;
