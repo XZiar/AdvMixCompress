@@ -113,18 +113,12 @@ uint8_t acp::compress(wstring filename, cmder set, ProgressInfo &pinfo)
 			//Dict Part
 			future<CodeAns> GetDictTestAns;
 			cv_Dict_Use.notify_all();
-		#if DEBUG_Thr
-			db_log(L"M** noti DC0\n");
-		#endif
+			log_thr(L"M** noti DC0\n");
 			cv_Dict_Ready.wait(lck_DictUse, [&] { return dOP.op == 0x7f; });
-		#if DEBUG_Thr
-			db_log(L"M** wa<- DC0\n");
-		#endif
+			log_thr(L"M** wa<- DC0\n");
 			//pre Dict Ans
 			GetDictTestAns = async(Code_TestDict, set.thread, dRep);
-		#if DEBUG_Thr
-			db_log(L"M** make CTD\n");
-		#endif
+			log_thr(L"M** make CTD\n");
 
 			//prepare data for buffer
 			if (dOP.findlen > 3)
@@ -132,36 +126,22 @@ uint8_t acp::compress(wstring filename, cmder set, ProgressInfo &pinfo)
 
 			//Buffer Part
 			cv_Buf_Use.notify_all();
-		#if DEBUG_Thr
-			db_log(L"M** noti BC0\n");
-		#endif
+			log_thr(L"M** noti BC0\n");
 			cv_Buf_Ready.wait(lck_BufUse, [&] { return bOP.op == 0x7f; });
-		#if DEBUG_Thr
-			db_log(L"M** wa<- BC0\n");
-		#endif
+			log_thr(L"M** wa<- BC0\n");
 
 			//pre Buf Ans
 			future<CodeAns> GetBufTestAns = async(Code_TestBuffer, set.thread, bRep);
-		#if DEBUG_Thr
-			db_log(L"M** make CTB\n");
-		#endif
+			log_thr(L"M** make CTB\n");
 
 			//get Ans
 			Dans = GetDictTestAns.get();
-
-		#if DEBUG_Thr
-			db_log(L"M** get CTD\n");
-		#endif
+			log_thr(L"M** get CTD\n");
 
 			bOP.op = 0xfe;
 			Bans = GetBufTestAns.get();
-		#if DEBUG_Thr
-			db_log(L"M** get CTB\n");
-		#endif
+			log_thr(L"M** get CTB\n");
 
-		#if DEBUG_Thr
-			db_log(L"**Get Ans\n");
-		#endif
 			//pre next op
 			if (Bans.savelen >= Dans.savelen)//Buffer find more&equal byte OR Buffer save more&equal space
 			{
@@ -225,33 +205,19 @@ uint8_t acp::compress(wstring filename, cmder set, ProgressInfo &pinfo)
 		#endif
 			//Buffer Part
 			cv_Buf_Use.notify_all();
-		#if DEBUG_Thr
-			db_log(L"M** noti BC0\n");
-		#endif
+			log_thr(L"M** noti BC0\n");
 			cv_Buf_Ready.wait(lck_BufUse, [&] { return bOP.op == 0x7f; });
-		#if DEBUG_Thr
-			db_log(L"M** wa<- BC0\n");
-		#endif
+			log_thr(L"M** wa<- BC0\n");
 
 			//pre Buf Ans
 			future<CodeAns> GetBufTestAns = async(Code_TestBuffer, set.thread, bRep);
-		#if DEBUG_Thr
-			db_log(L"M** make CTB\n");
-		#endif
+			log_thr(L"M** make CTB\n");
 
-		#if DEBUG_Thr
-			db_log(L"M** get CTD\n");
-		#endif
-
+			log_thr(L"M** get CTD\n");
 			bOP.op = 0xfe;
 			Bans = GetBufTestAns.get();
-		#if DEBUG_Thr
-			db_log(L"M** get CTB\n");
-		#endif
+			log_thr(L"M** get CTB\n");
 
-		#if DEBUG_Thr
-			db_log(L"**Get Ans\n");
-		#endif
 			//pre next op
 			if (Bans.savelen < 0)//no saving bits
 			{

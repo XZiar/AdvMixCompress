@@ -136,9 +136,9 @@ namespace acp
 		{
 			//auto tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
 			//tmpdat += buffer[Buf_Pos_cur++];
-			auto tmpdat = hash(&buffer[(int32_t)Buf_Pos_cur++]);
-			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat % 769];
-			BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
+			auto tmp = hash(&buffer[(int32_t)Buf_Pos_cur++]);
+			BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmp];
+			BlkInfo[Buf_Blk_cur].hash[tmp] = a;
 		}
 
 		//fill next block
@@ -161,9 +161,9 @@ namespace acp
 			{
 				//uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
 				//tmpdat += buffer[Buf_Pos_cur++];
-				auto tmpdat = hash(&buffer[(int32_t)Buf_Pos_cur++]);
-				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmpdat = tmpdat % 769];
-				BlkInfo[Buf_Blk_cur].hash[tmpdat] = a;
+				auto tmp = hash(&buffer[(int32_t)Buf_Pos_cur++]);
+				BlkInfo[Buf_Blk_cur].jump[a] = BlkInfo[Buf_Blk_cur].hash[tmp];
+				BlkInfo[Buf_Blk_cur].hash[tmp] = a;
 			}
 		}
 		

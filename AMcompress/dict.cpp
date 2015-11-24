@@ -181,8 +181,8 @@ namespace acp
 		for (uint8_t a = len - 1; a > 1;--a)
 		{
 			//uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
-			auto tmpdat = hash(&dicdata.data[a]);
-			uint8_t dat = (tmpdat % 769) % 53;
+			auto tmp = hash(&dicdata.data[a]);
+			uint8_t dat = tmp % 53;
 			dicdata.jump[a] = dicidx.index[dat];
 			dicidx.index[dat] = a;
 		}
@@ -193,8 +193,6 @@ namespace acp
 		{
 			if (dicidx.index[a] != 0x7f)
 				tab += idxjudge[a];
-				//tab += tmptab;
-			//tmptab = tmptab >> 1;
 		}
 		return tab;
 	}

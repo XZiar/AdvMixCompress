@@ -7,7 +7,7 @@ namespace acp
 {
 	inline uint16_t hash(uint8_t * dat)
 	{
-		return (uint16_t)*(dat - 2) * 169 + (uint16_t)*(dat - 1) * 13 + *dat;
+		return ((uint16_t)*(dat - 2) * 961 + (uint16_t)*(dat - 1) * 31 + *dat) % 769;
 	}
 	
 	inline static void Chksort(ChkItem &chkdat, uint8_t objpos)
@@ -27,7 +27,9 @@ namespace acp
 			//if (chkdat.list[curpos2] != objval)
 			if ((chkdat.list[curpos2] ^ objval) & 0x3ff)
 				break;
+
 		//curpos2+1 = left border,curpos = right border
+
 		//move right data
 		memmove(&chkdat.list[curpos + 2], &chkdat.list[curpos + 1], 2 * (objpos - curpos - 1));
 		//move left data
@@ -45,7 +47,7 @@ namespace acp
 		
 		uint8_t dat = chkdat.data[chkdat.curlen];
 		auto tmp = hash(&chkdat.data[chkdat.curlen]);
-		chkdat.list[chkdat.curlen] = (tmp % 769) + ((uint16_t)chkdat.curlen << 10);
+		chkdat.list[chkdat.curlen] = tmp + ((uint16_t)chkdat.curlen << 10);
 		Chksort(chkdat, chkdat.curlen);
 
 		chkdat.minpos = chkdat.list[chkdat.curlen] >> 10;
@@ -78,7 +80,7 @@ namespace acp
 		for (uint8_t a = 2; a < count; ++a)
 		{
 			auto tmp = hash(&chkdat.data[a]);
-			chkdat.list[a] = (tmp % 769) + ((uint16_t)a << 10);
+			chkdat.list[a] = tmp + ((uint16_t)a << 10);
 			Chksort(chkdat, a);
 		}
 		chkdat.minpos = chkdat.list[--count] >> 10;
