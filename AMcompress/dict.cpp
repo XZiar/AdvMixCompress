@@ -180,10 +180,8 @@ namespace acp
 		memset(dicidx.index, 0x7f, sizeof(DictIndex));
 		for (uint8_t a = len - 1; a > 1;--a)
 		{
-			//uint8_t dat = dicdata.data[a];
-			//uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
-			//tmpdat += buffer[Buf_Pos_cur++];
-			uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
+			//uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
+			auto tmpdat = hash(&dicdata.data[a]);
 			uint8_t dat = (tmpdat % 769) % 53;
 			dicdata.jump[a] = dicidx.index[dat];
 			dicidx.index[dat] = a;

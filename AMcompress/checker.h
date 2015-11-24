@@ -9,15 +9,13 @@ namespace acp
 			minpos,//current pos of min-appear
 			limit = 64,//max len of this chkitem
 			curlen;//current len of this chkitem
-			//mincnt,//appear-count of min-appear
-			//minposD//current pos of min-appear
 		uint16_t minvalD;
-		//uint8_t minvalDD;//current bit value of min-appear
 		uint8_t empty[2];
-		//uint8_t counts[256];
 		uint16_t list[64];
 	};
 
+	uint16_t hash(uint8_t* dat);
+	
 	uint8_t Chk_inc(ChkItem &chkdat);
 	uint8_t Chk_upd(ChkItem &chkdat, FILE *inf, const uint8_t count);//remove data and read new data
 	uint8_t Chk_pre(ChkItem &chkdat, uint8_t count);//prepare chker
