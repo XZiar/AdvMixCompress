@@ -54,7 +54,7 @@ namespace acp
 	_CRT_ALIGN(16) static uint16_t DictSize_Max,//max count of diction
 		DictSize_Cur;//current size of diction
 	_CRT_ALIGN(16) static uint64_t judgenum[65];//judge num
-	_CRT_ALIGN(16) static uint64_t idxjudge[55];//judge num
+	_CRT_ALIGN(16) static int64_t idxjudge[55];//judge num
 
 
 	/*bool check()
@@ -101,9 +101,9 @@ namespace acp
 		/*uint64_t ijtmp = 1;
 		for (auto a = 0; a < 53; ++a, ijtmp = ijtmp << 1)
 			idxjudge[a] = ijtmp;*/
-		uint64_t ijtmp = 0x8000000000000000Ui64;
-		for (auto a = 0; a < 53; ++a, ijtmp = ijtmp >> 1)
-			idxjudge[a] = ijtmp;
+		int64_t ijtmp = 0x4000000000000000i64;
+		for (auto a = 0; a < 53; ijtmp = ijtmp >> 1)
+			idxjudge[a++] = ijtmp;
 		/*union ttt
 		{
 			uint64_t l;
@@ -231,7 +231,7 @@ namespace acp
 		for (uint8_t a = 53; a--;)
 		{
 			if (dicidx.index[a] != 0x7f)
-				tab |= idxjudge[a];
+				tab += idxjudge[a];
 		}
 		return tab;
 	}
@@ -248,8 +248,7 @@ namespace acp
 		}
 		DictItem &dicdata = Diction[DictListB[DictSize_Cur].dnum];
 		_mm_prefetch((char*)&dicdata, _MM_HINT_T0);
-		DictListA[DictSize_Cur].tab = 0x0;
-		DictListB[DictSize_Cur].benefit = DictListA[DictSize_Cur].size = len;
+		DictListA[DictSize_Cur].tab = DictListB[DictSize_Cur].benefit = len;
 		//DictList[DictSize_Cur].oID = a_OnlyID++;
 #if DEBUG_Com
 		wchar_t db_str[120];
@@ -259,7 +258,7 @@ namespace acp
 		
 		memset(dicdata.L.data, 0, 64);
 		memcpy(dicdata.L.data, data, len);
-		DictListA[DictSize_Cur].tab |= DictPre(dicdata, DictIdx[DictListB[DictSize_Cur].dnum], len);
+		DictListA[DictSize_Cur].tab += DictPre(dicdata, DictIdx[DictListB[DictSize_Cur].dnum], len);
 		DictListSort(0, DictSize_Cur);
 		++DictSize_Cur;
 		return;
@@ -307,10 +306,11 @@ namespace acp
 		uint8_t	&chk_minpos = chkdata.minpos;
 		uint8_t &chk_minval = chkdata.minval;
 		int8_t dicspos,//real start pos of dict
-			maxpos,//max find pos(start) in the dict
-			maxpos_next;
+			maxpos;//max find pos(start) in the dict
+		int64_t maxpos_next;
 		uint8_t dic_num_add[256],
 			dic_add_idx;
+		int64_t cmp_mask, cmp_obj;
 		const uint8_t num_add = tNum * 8 - 7;
 
 		//init
@@ -372,10 +372,14 @@ namespace acp
 				}
 			#endif
 				//if (DictList[dic_num_next].tab&idxjudge[chk_minval])
-				if ((DictListA[dic_num_next].tab << chk_minval) < 0)
+				//if ((DictListA[dic_num_next].tab << (chk_minval + 1)) < 0)
 				//judge if len satisfy
-					if ((maxpos_next = DictListA[dic_num_next].size - chkdata.curlen) >= 0)
-						break;//get it
+					//if ((maxpos_next = DictListA[dic_num_next].size - chkdata.curlen) >= 0)
+				
+				if ((maxpos_next = (DictListA[dic_num_next].tab&cmp_mask) - cmp_obj) >= 0)
+				{
+					break;//get it
+				}
 			}
 			if (dic_num_next >= DictSize_Cur)
 				dic_num_next = 0xffff;//end it
@@ -392,7 +396,7 @@ namespace acp
 				p_prefetch = (char *)&DictIdx[DictListB[dic_num_next].dnum];//pos of the object DictIndex
 				_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 				//prefetch next block
-				p_prefetch = ((char*)&DictListA[(dic_num_next + num_add) & 0xfffc]);
+				p_prefetch = ((char*)&DictListA[(dic_num_next + num_add) & 0xfff8]);
 				_mm_prefetch(p_prefetch, _MM_HINT_T0);//next block info
 				//_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//next block info
 			}
@@ -403,7 +407,7 @@ namespace acp
 			dicinfoa = &DictListA[dic_num_cur];
 			dicdata = &Diction[dicinfob->dnum];
 			dicidx = &DictIdx[dicinfob->dnum];
-			maxpos = maxpos_next;
+			maxpos = (int8_t)maxpos_next;
 			if (dicinfoa->size > 32)
 			{
 				dic_dat = dicdata->L.data;
@@ -431,6 +435,9 @@ namespace acp
 			dicdata = &Diction[dicinfo->dnum];
 			dicidx = &DictIdx[dicinfo->dnum];*/
 			func_tonext();
+
+			cmp_mask = idxjudge[chk_minval] + 0xff;
+			cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
 
 			//prefetch current
 			p_prefetch = (char *)dicdata;//pos of the object DictItem
@@ -523,6 +530,8 @@ namespace acp
 					if (Chk_inc(chkdata) == 0)
 						break;//chkdata is full used
 					//add chk suc
+					cmp_mask = idxjudge[chk_minval] + 0xff;
+					cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
 					if (--maxpos_next < 0)//next fail
 						func_findnext();
 					if (--maxpos < 0)
