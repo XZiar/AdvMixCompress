@@ -41,7 +41,7 @@ namespace acp
 		cv_Dict_Ready;//cv to wake up upper thread
 	static condition_variable cv_FindThread_Wait,//cv to wake up find thread
 		cv_CtrlThread_Wait;//cv to wake up ctrl thread
-	static atomic_int64_t a_FT_state(0);
+	static atomic_uint64_t a_FT_state(0);
 	static int8_t FindLen;
 	static uint32_t a_OnlyID = 0;
 	static uint32_t a_chk_times = 0;
@@ -568,7 +568,7 @@ namespace acp
 			db_log(msg[4]);
 #endif
 			cv_CtrlThread_Wait.notify_all();
-			cv_FindThread_Wait.wait(lck, [=] {return a_FT_state & mask; });
+			cv_FindThread_Wait.wait(lck, [&mask] {return a_FT_state & mask; });
 #if DEBUG_Thr
 			db_log(msg[5]);
 #endif
@@ -604,9 +604,9 @@ namespace acp
 
 		for (int8_t a = 0; a < tCount; a++)
 			t_find[a].detach();
-
+		
 		//wait for init of findthread
-		cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
+		cv_CtrlThread_Wait.wait(lck_FindThread, [&mask] {return a_FT_state.load() == mask; });
 		//FindThread init finish
 #if DEBUG
 		wchar_t db_str[120];
@@ -642,7 +642,7 @@ namespace acp
 #if DEBUG_Thr
 			db_log(L"DC0 noti DTa\n");
 #endif
-			cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
+			cv_CtrlThread_Wait.wait(lck_FindThread, [&mask] { return a_FT_state.load() == mask; });
 #if DEBUG_Thr
 			db_log(L"DC0 wa<- DTa\n");
 #endif
@@ -697,7 +697,7 @@ namespace acp
 #if DEBUG_Thr
 		db_log(L"DC0 noti DTa\n");
 #endif
-		cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
+		cv_CtrlThread_Wait.wait(lck_FindThread, [&mask] {return a_FT_state == mask; });
 #if DEBUG_Thr
 		db_log(L"DC0 wa<- DTa\n");
 #endif
