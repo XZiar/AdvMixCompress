@@ -57,27 +57,6 @@ namespace acp
 	_CRT_ALIGN(16) static int64_t idxjudge[55];//judge num
 
 
-	/*bool check()
-	{
-		a_chk_times++;
-		wprintf(L"check() sizeof=%zd\n",sizeof(DictInfo));
-		for (auto a = 0; a <= DictSize_Cur; ++a)
-		{
-			wprintf(L"## %5d oID=%5d len=%2d ben=%3d\n", a, DictList[a].oID, DictList[a].len, DictList[a].benefit);
-		}
-		wprintf(L"~~~check()\n");
-		for (auto a = 1; a < DictSize_Cur; ++a)
-		{
-			if (DictList[a].benefit > DictList[a - 1].benefit)
-			{
-				wprintf(L"\nwrong order when %d & size=%d\n", a_chk_times, DictSize_Cur);
-				return false;
-			}
-		}
-		return true;
-	}*/
-
-
 	void Dict_init(uint16_t diccount)
 	{
 		Diction = (DictItem*)malloc_align(sizeof(DictItem)*diccount, 64);
@@ -124,17 +103,14 @@ namespace acp
 		dumpdict();
 #endif
 		free_align(Diction);
-		//delete[] Diction;
 		free_align(DictListA);
 		free_align(DictListB);
-		//delete[] DictList;
 		free_align(DictIdx);
 		return;
 	}
 
 	static inline void DictListSort(uint16_t start,uint16_t end)
 	{
-		//check();
 		if (end == start)
 			return;
 		int32_t left = start,//left border
@@ -160,7 +136,7 @@ namespace acp
 		DictListA[left] = objda;
 		memmove(&DictListB[left + 1], &DictListB[left], sizeof(DictInfoB)*(end - left));
 		DictListB[left] = objdb;
-		//check();
+
 		return;
 	}
 
@@ -220,7 +196,6 @@ namespace acp
 		memset(dicidx.index, 0x7f, sizeof(DictIndex));
 		for (uint8_t a = len - 1; a > 1;--a)
 		{
-			//uint16_t tmpdat = (uint16_t)dicdata.data[a - 1] * 13 + (uint16_t)dicdata.data[a - 2] * 169 + dicdata.data[a];
 			auto tmp = hash(&dic_dat[a]);
 			uint8_t dat = tmp % 53;
 			dic_jmp[a] = dicidx.index[dat];
@@ -243,7 +218,6 @@ namespace acp
 			DictClean();
 		if (isFirstFree)//fitst time, assign a addr
 		{
-			//DictList[DictSize_Cur].dpos = DictSize_Cur;
 			DictListB[DictSize_Cur].dnum = DictSize_Cur;
 		}
 		DictItem &dicdata = Diction[DictListB[DictSize_Cur].dnum];
@@ -274,8 +248,6 @@ namespace acp
 			//offset = DictList[dID].len - len;
 		if (offset + len > DictListA[dID].size)
 			return 0x2;
-		//DictItem &tmp = Diction[DictList[DictSize_Cur].dpos];
-		//memcpy(data, tmp.data + offset, len);
 		DictItem &dicdata = Diction[DictListB[dID].dnum];
 		memcpy(data, dicdata.L.data + offset, len);
 		DictUse(dID, len);
@@ -300,9 +272,6 @@ namespace acp
 			objpos,//object-bit pos in the dict
 			chkleft;//left count of checker
 
-		//uint8_t &chk_minval = chkdata.minval,
-			//&chk_minpos = chkdata.minpos;
-		//uint16_t &chk_minvalD = chkdata.minvalD;
 		uint8_t	&chk_minpos = chkdata.minpos;
 		uint8_t &chk_minval = chkdata.minval;
 		int8_t dicspos,//real start pos of dict
@@ -334,23 +303,19 @@ namespace acp
 		swprintf(msg[4], L"DFT %2d noti DC0\n", tID);
 		swprintf(msg[5], L"DFT %2d wa<- DC0\n", tID);
 
-		db_log(msg[0]);
+		log_thr(msg[0]);
 #endif
 		a_FT_state -= mask;
-#if DEBUG_Thr
-		db_log(msg[4]);
-#endif
+		log_thr(msg[4]);
+
 		cv_CtrlThread_Wait.notify_all();
 			
 		cv_FindThread_Wait.wait(lck, [=] {return a_FT_state & mask; });
-#if DEBUG_Thr
-		db_log(msg[5]);
-#endif
+		log_thr(msg[5]);
+
 		lck.unlock();
-#if DEBUG_Thr
-		db_log(msg[3]);
-		db_log(msg[1]);
-#endif
+		log_thr(msg[3]);log_thr(msg[1]);
+
 		//prefetch chkdata
 		_mm_prefetch((char*)chkdata.data, _MM_HINT_T0);//data
 		_mm_prefetch((char*)chkdata.data + 64, _MM_HINT_T0);//propety
@@ -360,7 +325,6 @@ namespace acp
 		{
 			//for (dic_num_next += dic_num_add[dic_add_idx++]; dic_num_next < DictSize_Cur; dic_num_next += dic_num_add[dic_add_idx++])
 			//for (; (dic_num_next += dic_num_add[dic_add_idx++]) < DictSize_Cur;)
-			//for (; (dic_num_next += (++dic_add_idx & 0x3?1:3)) < DictSize_Cur;)//slow
 			for (; (dic_num_next += dic_num_add[(dic_add_idx++) & 0xf]) < DictSize_Cur;)
 			{
 			#if DEBUG_BUF_CHK
@@ -419,8 +383,6 @@ namespace acp
 				dic_dat = dicdata->S.data;
 				dic_jmp = dicdata->S.jump;
 			}
-			//dic_dat = dicdata->data;
-			//dic_jmp = dicdata->jump;
 		};
 
 		while (true)//run one cycle at a FindInDict
@@ -430,10 +392,6 @@ namespace acp
 			dic_num_next = dic_num_cur = tID * 8;
 			dic_add_idx = 0;
 
-			//locate dict
-			/*dicinfo = &DictList[dic_num_cur];
-			dicdata = &Diction[dicinfo->dnum];
-			dicidx = &DictIdx[dicinfo->dnum];*/
 			func_tonext();
 
 			cmp_mask = idxjudge[chk_minval] + 0xff;
@@ -559,32 +517,27 @@ namespace acp
 			//send back signal to the control thread
 			a_FT_state -= mask;
 			lck.lock();
-#if DEBUG_Thr
-			db_log(msg[2]);
-#endif
+			log_thr(msg[2]);
+
 			if (dicrep.isFind && FindLen < dicrep.objlen)
 				FindLen = dicrep.objlen;
-#if DEBUG_Thr
-			db_log(msg[4]);
-#endif
+			log_thr(msg[4]);
+
 			cv_CtrlThread_Wait.notify_all();
 			cv_FindThread_Wait.wait(lck, [&mask] {return a_FT_state & mask; });
-#if DEBUG_Thr
-			db_log(msg[5]);
-#endif
+			log_thr(msg[5]);
+
 			//waked up from ctrl thread
 			lck.unlock();
-#if DEBUG_Thr
-			db_log(msg[3]);
-#endif
+			log_thr(msg[3]);
+
 			if(op == 0xff)
 				break;//break to stop the thread
 		}
 		a_FT_state -= mask;
 		cv_CtrlThread_Wait.notify_all();
-#if DEBUG_Thr
-		db_log(msg[4]);
-#endif
+		log_thr(msg[4]);
+
 		return;
 	}
 
@@ -611,20 +564,17 @@ namespace acp
 #if DEBUG
 		wchar_t db_str[120];
 #endif
-#if DEBUG_Thr
-		db_log(L"Init ok %d Dic_Fthr.\n");
-#endif
+		log_thr(L"Init ok %d Dic_Fthr.\n");
+
 		//notify upper thread
 		op.op = 0;
 		cv_Dict_Ready.notify_all();
-#if DEBUG_Thr
-		db_log(L"DC0 noti M**\n");
-#endif
+		log_thr(L"DC0 noti M**\n");
+
 		//give up the mutex to wake up upper thread
 		cv_Dict_Use.wait(lck_DictUse, [&] {return op.op != 0; });
-#if DEBUG_Thr
-		db_log(L"DC0 wa<- M**\n");
-#endif
+		log_thr(L"DC0 wa<- M**\n");
+
 		//start into the main part
 		while (true)
 		{
@@ -633,33 +583,25 @@ namespace acp
 			FindLen = 0;
 			ftop = 0;
 			a_FT_state = 0xffffffffffffffffUi64;
-#if _NODICT
-			op.op = 0x7f;
-			op.findlen = 0;
-#else
+
 			//wake up all find-thread
 			cv_FindThread_Wait.notify_all();
-#if DEBUG_Thr
-			db_log(L"DC0 noti DTa\n");
-#endif
+			log_thr(L"DC0 noti DTa\n");
+
 			cv_CtrlThread_Wait.wait(lck_FindThread, [&mask] { return a_FT_state.load() == mask; });
-#if DEBUG_Thr
-			db_log(L"DC0 wa<- DTa\n");
-#endif
+			log_thr(L"DC0 wa<- DTa\n");
+
 			//waked up from find-thread
 
 			op.findlen = FindLen;
 			op.op = 0x7f;
-#endif
 
 			cv_Dict_Ready.notify_all();
-#if DEBUG_Thr
-			db_log(L"DC0 noti M**\n");
-#endif
+			log_thr(L"DC0 noti M**\n");
+
 			cv_Dict_Use.wait(lck_DictUse, [&] {return op.op != 0x7f; });
-#if DEBUG_Thr
-			db_log(L"DC0 wa<- M**\n");
-#endif
+			log_thr(L"DC0 wa<- M**\n");
+
 			//waked up from upper-thread
 
 			if (op.op == 0xfd)//use dict
@@ -694,19 +636,16 @@ namespace acp
 		ftop = 0xff;
 		a_FT_state = 0xffffffffffffffffUi64;
 		cv_FindThread_Wait.notify_all();//wake up all find-thread
-#if DEBUG_Thr
-		db_log(L"DC0 noti DTa\n");
-#endif
+		log_thr(L"DC0 noti DTa\n");
+
 		cv_CtrlThread_Wait.wait(lck_FindThread, [&mask] {return a_FT_state == mask; });
-#if DEBUG_Thr
-		db_log(L"DC0 wa<- DTa\n");
-#endif
+		log_thr(L"DC0 wa<- DTa\n");
+
 		//all find-thread finish
 		op.op = 0x7f;
 		cv_Dict_Ready.notify_all();
-#if DEBUG_Thr
-		db_log(L"DC0 noti M**\n");
-#endif
+		log_thr(L"DC0 noti M**\n");
+
 		lck_DictUse.unlock();
 		return;
 	}
