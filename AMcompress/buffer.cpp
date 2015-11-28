@@ -82,9 +82,8 @@ namespace acp
 		fclose(ttf);
 #endif
 		free_align(rbuffer);
-		//delete[] buffer;
 		free_align(BlkInfo);
-		//delete[] BlkInfo;
+
 		return;
 	}
 
@@ -222,23 +221,19 @@ namespace acp
 		db_log(msg[0]);
 #endif
 		a_FT_state -= mask;
-#if DEBUG_Thr
-		db_log(msg[4]);
-#endif
+		log_thr(msg[4]);
+
 		cv_CtrlThread_Wait.notify_all();
 
 		cv_FindThread_Wait.wait(lck, [=] {return a_FT_state & mask; });
-#if DEBUG_Thr
-		db_log(msg[5]);
-#endif
+		log_thr(msg[5]);
+
 		lck.unlock();
-#if DEBUG_Thr
-		db_log(msg[3]);
-#endif
+		log_thr(msg[3]);
+
 		memcpy(judgenum, judgenum_all, 520);
-#if DEBUG_Thr
-		db_log(msg[1]);
-#endif
+		log_thr(msg[1]);
+
 		//prefetch chkdata
 		_mm_prefetch((char*)chkdata.data, _MM_HINT_T0);//data
 		_mm_prefetch((char*)chkdata.data + 64, _MM_HINT_T0);//propety
@@ -463,33 +458,28 @@ namespace acp
 
 			//send back signal to the control thread
 			lck.lock();
-#if DEBUG_Thr
-			db_log(msg[2]);
-#endif
+			log_thr(msg[2]);
+
 			a_FT_state -= mask;
 			//if (bufrep.isFind && a_FindLen < bufrep.objlen)
 				//a_FindLen = bufrep.objlen;
-#if DEBUG_Thr
-			db_log(msg[4]);
-#endif
+			log_thr(msg[4]);
+
 			cv_CtrlThread_Wait.notify_all();
 			cv_FindThread_Wait.wait(lck, [=] {return a_FT_state & mask; });
-#if DEBUG_Thr
-			db_log(msg[5]);
-#endif
+			log_thr(msg[5]);
+
 			//waked up from ctrl thread
 			lck.unlock();
-#if DEBUG_Thr
-			db_log(msg[3]);
-#endif
+			log_thr(msg[3]);
+
 			if (op == 0xff)
 				break;//break to stop the thread
 		}
 		a_FT_state -= mask;
 		cv_CtrlThread_Wait.notify_all();
-#if DEBUG_Thr
-		db_log(msg[4]);
-#endif
+		log_thr(msg[4]);
+
 		return;
 	}
 
@@ -515,19 +505,17 @@ namespace acp
 		//FindThread init finish
 #if DEBUG_Thr
 		wchar_t db_str[120];
-		db_log(L"Init ok %d Buf_Fthr.\n");
+		log_thr(L"Init ok %d Buf_Fthr.\n");
 #endif
 		//notify upper thread
 		op.op = 0;
 		cv_Buf_Ready.notify_all();
-#if DEBUG_Thr
-		db_log(L"BC0 noti M**\n");
-#endif
+		log_thr(L"BC0 noti M**\n");
+
 		//give up the mutex to wake up upper thread
 		cv_Buf_Use.wait(lck_BufUse, [&] {return op.op != 0; });
-#if DEBUG_Thr
-		db_log(L"BC0 wa<- M**\n");
-#endif
+		log_thr(L"BC0 wa<- M**\n");
+
 		//start into the main part
 		while (true)
 		{
@@ -538,24 +526,20 @@ namespace acp
 			a_FT_state = 0xffffffffffffffffUi64;
 			//wake up all find-thread
 			cv_FindThread_Wait.notify_all();
-#if DEBUG_Thr
-			db_log(L"BC0 noti BTa\n");
-#endif
+			log_thr(L"BC0 noti BTa\n");
+
 			cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
-#if DEBUG_Thr
-			db_log(L"BC0 wa<- BTa\n");
-#endif
+			log_thr(L"BC0 wa<- BTa\n");
+
 			//waked up from find-thread
 
 			op.op = 0x7f;
 			cv_Buf_Ready.notify_all();
-#if DEBUG_Thr
-			db_log(L"BC0 noti M**\n");
-#endif
+			log_thr(L"BC0 noti M**\n");
+
 			cv_Buf_Use.wait(lck_BufUse, [&] {return op.op != 0X7f; });
-#if DEBUG_Thr
-			db_log(L"BC0 wa<- M**\n");
-#endif
+			log_thr(L"BC0 wa<- M**\n");
+
 			//waked up from upper-thread
 
 			if (op.op == 0xff)//find finish
@@ -568,19 +552,16 @@ namespace acp
 		ftop = 0xff;
 		a_FT_state = 0xffffffffffffffffUi64;
 		cv_FindThread_Wait.notify_all();//wake up all find-thread
-#if DEBUG_Thr	
-		db_log(L"BC0 noti BTa\n");
-#endif
+		log_thr(L"BC0 noti BTa\n");
+
 		cv_CtrlThread_Wait.wait(lck_FindThread, [=] {return a_FT_state == mask; });
-#if DEBUG_Thr
-		db_log(L"BC0 noti BTa\n");
-#endif
+		log_thr(L"BC0 noti BTa\n");
+
 		//all find-thread finish
 		op.op = 0x7f;
 		cv_Buf_Ready.notify_all();
-#if DEBUG_Thr
-		db_log(L"BC0 noti M**\n");
-#endif
+		log_thr(L"BC0 noti M**\n");
+
 		lck_BufUse.unlock();
 		return;
 	}

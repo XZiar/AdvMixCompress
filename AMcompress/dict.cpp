@@ -83,16 +83,6 @@ namespace acp
 		int64_t ijtmp = 0x4000000000000000i64;
 		for (auto a = 0; a < 53; ijtmp = ijtmp >> 1)
 			idxjudge[a++] = ijtmp;
-		/*union ttt
-		{
-			uint64_t l;
-			uint8_t s[8];
-		};
-		ttt a;
-		a.l = 0x0;
-		a.s[0] = 0x1; a.s[7] = 0xf;
-		wprintf(L"\nl=%lld,%llx\n", a.l, a.l);
-		wprintf(L"\nl=%lld,%llx\n", a.l>>1, a.l>>1);*/
 
 		return;
 	}
