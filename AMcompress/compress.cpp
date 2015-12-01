@@ -103,13 +103,6 @@ uint8_t acp::compress(wstring filename, cmder set, ProgressInfo &pinfo)
 		while (Chk_upd(chkdata, inf, next_read) >= 3)//loop untill file end
 		{
 			Chk_pre(chkdata, 3);
-		#if DEBUG
-			if (bOP.op == 0xfe)
-			{
-				if (!chkadddata())
-				{//wprintf(L"\nwrong add data!at %d dict-cycle\n",d_cycle);}
-			}
-		#endif
 			//Dict Part
 			future<CodeAns> GetDictTestAns;
 			cv_Dict_Use.notify_all();
@@ -196,13 +189,6 @@ uint8_t acp::compress(wstring filename, cmder set, ProgressInfo &pinfo)
 		while (Chk_upd(chkdata, inf, next_read) >= 3)//loop untill file end
 		{
 			Chk_pre(chkdata, 3);
-		#if DEBUG
-			if (bOP.op == 0xfe)
-			{
-				if (!chkadddata())
-				{//wprintf(L"\nwrong add data!at %d dict-cycle\n",d_cycle);}
-			}
-		#endif
 			//Buffer Part
 			cv_Buf_Use.notify_all();
 			log_thr(L"M** noti BC0\n");

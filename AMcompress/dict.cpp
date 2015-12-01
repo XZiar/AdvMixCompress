@@ -265,7 +265,7 @@ namespace acp
 	{
 #if DEBUG_Com
 		wchar_t db_str[120];
-		swprintf(db_str, L"DIC USE: id=%d oID=%d\n", dID, DictList[dID].oID);
+		swprintf(db_str, L"DIC USE: id=%d\n", dID);
 		db_log(1, db_str);
 #endif
 		DictList[dID].benefit += ben;
@@ -362,7 +362,7 @@ namespace acp
 
 #if DEBUG_Com
 		wchar_t db_str[120];
-		swprintf(db_str, L"DIC ADD: oID=%d len=%d\n", DictList[DictSize_Cur].oID, DictList[DictSize_Cur].len);
+		swprintf(db_str, L"DIC ADD: len=%d\n", DictList[DictSize_Cur].size);
 		db_log(1, db_str);
 #endif
 		
@@ -394,15 +394,12 @@ namespace acp
 	{
 		ChkItem chkdata;
 		DictItem *dicdata;
-		DictInfo *dicinfo;
 		DictIndex *dicidx;
 		uint8_t *dic_dat,
 			*dic_jmp;
 		uint64_t *p_dic_cur,//current pos of dic_data
 			*p_chk_cur;//current pos of chker_data
-		uint16_t dic_num_cur,
-			dic_num_next = 0,
-			dbnum,
+		uint16_t dbnum,
 			dbnum_next = 0;
 		uint8_t dic_size = 0,
 			dic_size_next = 0;
@@ -416,22 +413,13 @@ namespace acp
 		int8_t dicspos,//real start pos of dict
 			maxpos;//max find pos(start) in the dict
 		int64_t maxpos_next;
-		uint8_t dic_num_add[256],
-			dic_add_idx;
-		int64_t cmp_mask, cmp_obj;
 		const uint8_t num_add = tNum * 8 - 7;
 		int16_t mypos = 0;
 
 		//init
 		const uint64_t mask = 0x1Ui64 << tID;
 		unique_lock <mutex> lck(mtx_FindThread_Wait);
-		memset(dic_num_add, 1, 256);
-		for (auto a = 7; a < 256; a += 8)
-		{
-			dic_num_add[a] = num_add;
-		}
-		p_prefetch = (char*)dic_num_add;
-		_mm_prefetch((char*)p_prefetch, _MM_HINT_T0);
+
 #if DEBUG_Thr
 		wchar_t msg[6][24];
 
@@ -488,7 +476,6 @@ namespace acp
 			dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next);
 			for (; dbnum_next < DictSize_Cur; dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next))
 			{
-				dic_num_next = DictTLT->dID[dbnum_next];
 				maxpos_next = dic_size_next - chkdata.curlen;
 			#if DEBUG_BUF_CHK
 				if (!tID)
@@ -502,7 +489,6 @@ namespace acp
 				return;
 			}
 
-			dic_num_next = 0xffff;//end it
 		};
 		auto func_tonext = [&]
 		{
@@ -632,7 +618,7 @@ namespace acp
 						func_findnext();
 					if (--maxpos < 0)
 					{//current failed
-						if (dic_num_next == 0xffff)//no next
+						if (dbnum_next == 0xffff)//no next
 							break;
 						
 						func_tonext();
@@ -642,7 +628,7 @@ namespace acp
 				}
 				else//not find it
 				{
-					if (dic_num_next == 0xffff)//no next
+					if (dbnum_next == 0xffff)//no next
 						break;
 					
 					func_tonext();
