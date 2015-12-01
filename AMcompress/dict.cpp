@@ -6,15 +6,14 @@
 
 namespace acp
 {
-	union DictInfoA
-	{
-		int64_t tab;
-		uint8_t size;
-	};
-	struct DictInfoB
+	_CRT_ALIGN(16) static uint16_t DictSize_Max,//max count of diction
+		DictSize_Cur;//current size of diction
+	struct DictInfo
 	{
 		uint16_t benefit;
 		uint16_t dnum;
+		uint8_t size,
+			empty;
 	};
 	struct DictIndex
 	{
@@ -23,118 +22,111 @@ namespace acp
 	class DictJump
 	{
 	public:
-		uint16_t *index;
-		int16_t size;
+		struct Jump
+		{
+			uint16_t index;
+			uint8_t size,
+				empty;
+		};
+		Jump *index[64];
+		int16_t size[64];
 		uint8_t tNum;
-		DictJump(uint16_t size)
+		void init(const uint16_t dsize, const uint8_t t)
 		{
-			index = (uint16_t*)malloc_align(size * 2, 64);
-			size = tNum = 0;
+			tNum = t;
+			for (uint8_t a = 0; a < tNum; ++a)
+			{
+				index[a] = (Jump*)malloc_align(dsize*sizeof(Jump) / tNum, 64);
+				size[a] = 0;
+			}
 		}
-		~DictJump()
+		void exit()
 		{
-			free_align(index);
+			for (uint8_t a = 0; a < tNum; ++a)
+				free_align(index[a]);
 		}
-		inline void replace(uint16_t oldval, uint16_t newval, bool isDo)
+		inline void add(const uint8_t dsize, uint16_t ival = 0xffff)
+		{
+			uint16_t val = 0;
+			val = (val == 0xffff ? DictSize_Cur : ival);
+			uint8_t tId = val%tNum;
+			index[tId][size[tId]].index = val;
+			index[tId][size[tId]].size = dsize;
+		}
+		inline void del()
+		{
+			for (uint8_t a = 0; a < tNum; ++a)
+				size[a] = 0;
+		}
+		inline uint16_t get(const uint8_t id, int16_t &pos, uint8_t &outsize)
+		{
+			pos = 0;
+			if (size[id])
+			{
+				outsize = index[id][0].size;
+				return index[id][0].index;
+			}
+			return 0xffff;
+		}
+		inline uint16_t chg(const uint8_t id, const uint16_t did, int16_t &pos)
 		{
 			int16_t left = 0,//left border
-				right = size - 1,//right border
-				mid = (left + right) / 2;//middle pos
-			if (isDo)
-			{
-				if (size == 1)
-				{
-					index[0] = newval;
-					return;
-				}
-				while (index[mid] != oldval)
-				{
-					if (oldval > index[mid])
-						left = mid + 1;
-					else
-						right = mid - 1;
-					mid = (left + right) / 2;
-				}
-				for (left = mid - 1;left >= 0 && index[left] >= newval; --left)
-					index[left + 1] = index[left] + 1;
-				index[left + 1] = newval;
-			}
-			else
-			{
-				for (; right >= 0 && index[right] > oldval; --right);
-				for (; right >= 0 && index[right] >= newval;)
-					index[right--]++;
-			}
-			return;
-		}
-		inline void add(uint16_t val, bool isDo)
-		{
-			int16_t a;
-			if (isDo)
-			{
-				for (a = size - 1; a >= 0 && index[a] >= val; --a)
-					index[a + 1] = index[a] + 1;
-				index[a + 1] = val;
-				size++;
-			}
-			else
-			{
-				for (a = size - 1; a >= 0 && index[a] >= val; --a)
-					index[a]++;
-			}
-			return;
-		}
-		inline void del(uint16_t num)
-		{
-			int16_t left = 0,//left border
-				right = size - 1,//right border
-				mid = (left + right) / 2;//middle pos
-			while (left <= right)
-			{
-				if (num > index[mid])
-					left = mid + 1;
-				else
-					right = mid - 1;
-				mid = (left + right) / 2;
-			}
-			size = mid + 1;
-		}
-		inline uint16_t get(uint8_t id, int16_t &pos)
-		{
-			for (pos = 0; pos < size; ++pos)
-				if (index[pos] % tNum == id)
-				{
-					return index[pos];
-				}
-			pos = size;
-			return 0x0;
-		}
-		inline uint16_t get(uint8_t id, uint16_t did, int16_t &pos)
-		{
-			int16_t left = 0,//left border
-				right = size - 1,//right border
+				right = size[id] - 1,//right border
 				mid = (left + right) / 2;//middle pos
 
 			while (left <= right)
 			{
-				if (did > index[mid])
+				if (did > index[id][mid].index)
 					left = mid + 1;
 				else
 					right = mid - 1;
 				mid = (left + right) / 2;
 			}
 			pos = left;
-			return index[left];
+			return 0x0;
 		}
-		inline uint16_t next(uint8_t id, int16_t &pos)
+		inline uint16_t next(const uint8_t id, const uint8_t dsize, int16_t &pos, uint8_t &outsize)
 		{
-			for (; ++pos < size;)
-				if (index[pos] % tNum == id)
+			for (; ++pos < size[id];)
+				if (index[id][pos].size >= dsize)
 				{
-					return index[pos];
+					outsize = index[id][pos].size;
+					return index[id][pos].index;
 				}
-			pos = size;
 			return 0xffff;
+		}
+	};
+
+	class TLT
+	{
+	public:
+		uint16_t *dID;
+		TLT(uint16_t dsize)
+		{
+			dID = (uint16_t*)malloc_align(2 * dsize, 64);
+		}
+		~TLT() { free_align(dID); }
+		void add(uint16_t val)
+		{
+			dID[DictSize_Cur] = val;
+			for (uint16_t a = 0; a < DictSize_Cur; ++a)
+				if (dID[a] >= val)
+					dID[a]++;
+		}
+		void set()
+		{
+			for (uint16_t a = 0; a < DictSize_Cur; ++a)
+				dID[a] = a;
+		}
+		void upd(uint16_t oldval, uint16_t newval)
+		{
+			for (uint16_t a = 0; a < DictSize_Cur; ++a)
+			{
+				if (dID[a] >= newval && dID[a] < oldval)
+					dID[a]++;
+				else if (dID[a] == oldval)
+					dID[a] = newval;
+			}
 		}
 	};
 
@@ -152,12 +144,11 @@ namespace acp
 	static uint32_t a_chk_times = 0;
 
 	static bool isFirstFree = true;
-	_CRT_ALIGN(16) static DictItem *Diction;//data of diction
-	_CRT_ALIGN(16) static DictInfoA *DictListA;//list of diction
-	_CRT_ALIGN(16) static DictInfoB *DictListB;//list of diction
-	_CRT_ALIGN(16) static DictIndex *DictIdx;//index of diction
-	_CRT_ALIGN(16) static uint16_t DictSize_Max,//max count of diction
-		DictSize_Cur;//current size of diction
+	static bool isDicPage = true;
+	_CRT_ALIGN(16) static DictItem *Diction, *DicA, *DicB;//data of diction
+	_CRT_ALIGN(16) static DictInfo *DictList;//list of diction
+	_CRT_ALIGN(16) static DictIndex *DictIdx, *DidxA, *DidxB;//index of diction
+	_CRT_ALIGN(16) static TLT *DictTLT;
 	_CRT_ALIGN(16) static uint64_t judgenum[65];//judge num
 	_CRT_ALIGN(16) static int64_t idxjudge[55];//judge num
 	_CRT_ALIGN(16) static DictJump *DictJmp[56];
@@ -165,18 +156,20 @@ namespace acp
 
 	void Dict_init(uint16_t diccount)
 	{
-		Diction = (DictItem*)malloc_align(sizeof(DictItem)*diccount, 64);
-		//Diction = new DictItem[diccount];
-		DictListA = (DictInfoA*)malloc_align(sizeof(DictInfoA)*diccount, 64);
-		DictListB = (DictInfoB*)malloc_align(sizeof(DictInfoB)*diccount, 64);
-		//DictList = new DictInfo[diccount];
-		DictIdx = (DictIndex*)malloc_align(sizeof(DictIndex)*diccount, 64);
+		DicA = (DictItem*)malloc_align(sizeof(DictItem)*diccount, 64);
+		DicB = (DictItem*)malloc_align(sizeof(DictItem)*diccount, 64);
+		Diction = DicA;
+		DictList = (DictInfo*)malloc_align(sizeof(DictInfo)*diccount, 64);
+		DidxA = (DictIndex*)malloc_align(sizeof(DictIndex)*diccount, 64);
+		DidxB = (DictIndex*)malloc_align(sizeof(DictIndex)*diccount, 64);
+		DictIdx = DidxA;
+		DictTLT = new TLT(diccount);
 		DictSize_Max = diccount;
 		DictSize_Cur = 0;
 		isFirstFree = true;
 		
 		for (auto a = 0; a < 56; ++a)
-			DictJmp[a] = new DictJump(diccount);
+			DictJmp[a] = new DictJump();
 
 		uint8_t judgetmp[8];
 		memset(judgetmp, 0, 8);
@@ -198,10 +191,12 @@ namespace acp
 #if DEBUG
 		dumpdict();
 #endif
-		free_align(Diction);
-		free_align(DictListA);
-		free_align(DictListB);
-		free_align(DictIdx);
+		free_align(DicA);
+		free_align(DicB);
+		free_align(DictList);
+		free_align(DidxA);
+		free_align(DidxB);
+		delete DictTLT;
 		for (auto a = 0; a < 53; ++a)
 			delete DictJmp[a];
 		return;
@@ -209,65 +204,51 @@ namespace acp
 
 	static inline void DictListSort(uint16_t start, uint16_t end, bool isNew = true)
 	{
-		DictInfoA objda = DictListA[end];//dict info of the changed one
+		DictInfo objd = DictList[end];//dict info of the changed one
+		DictIndex objidx = DictIdx[objd.dnum];
 		if (end == start)
 		{
 			if (isNew)
 			{
 				for (auto a = 0; a < 53; ++a)
-				{
-					DictJmp[a]->add(0, objda.tab & idxjudge[a]);
-				}
-			}
-			else
-			{
-				for (auto a = 0; a < 53; ++a)
-				{
-					DictJmp[a]->replace(0, 0, objda.tab & idxjudge[a]);
-				}
+					if (objidx.index[a] != 0x7f)
+						DictJmp[a]->add(objd.size);
+				DictTLT->add(0);
 			}
 			return;
 		}
-		int32_t left = start,//left border
+		int16_t left = start,//left border
 			right = end - 1,//right border
 			mid;//middle pos
 		
-		DictInfoB objdb = DictListB[end];//dict info of the changed one
-		uint16_t obj = objdb.benefit;
+		uint16_t obj = objd.benefit;
 		//if (DictList[right].benefit > obj)//no need to change
 			//return;
 		while (left <= right)
 		{
 			mid = (left + right) / 2;
 
-			if (obj < DictListB[mid].benefit)//the one should go right
+			if (obj < DictList[mid].benefit)//the one should go right
 				left = mid + 1;
 
 			else//DictList[mid].benefit <= obj //the one should go left
 				right = mid - 1;
-
 		}
-		memmove(&DictListA[left + 1], &DictListA[left], sizeof(DictInfoA)*(end - left));
-		DictListA[left] = objda;
-		memmove(&DictListB[left + 1], &DictListB[left], sizeof(DictInfoB)*(end - left));
-		DictListB[left] = objdb;
+		memmove(&DictList[left + 1], &DictList[left], sizeof(DictInfo)*(end - left));
+		DictList[left] = objd;
 		
 		//
 		if (isNew)
 		{
 			for (auto a = 0; a < 53; ++a)
-			{
-				DictJmp[a]->add(left, objda.tab & idxjudge[a]);
-			}
+				if (objidx.index[a] != 0x7f)
+					DictJmp[a]->add(objd.size);
+			DictTLT->add(left);
 		}
 		else
 		{
-			for (auto a = 0; a < 53; ++a)
-			{
-				DictJmp[a]->replace(end, left, objda.tab & idxjudge[a]);
-			}
+			DictTLT->upd(left, end);
 		}
-		DictJmp[0]->size;
 		return;
 	}
 
@@ -275,7 +256,7 @@ namespace acp
 	{
 		for (uint16_t a = 0; a < DictSize_Cur; ++a)
 		{
-			DictListB[a].benefit /= 2;
+			DictList[a].benefit /= 2;
 		}
 		return;
 	}
@@ -287,9 +268,9 @@ namespace acp
 		swprintf(db_str, L"DIC USE: id=%d oID=%d\n", dID, DictList[dID].oID);
 		db_log(1, db_str);
 #endif
-		DictListB[dID].benefit += ben;
+		DictList[dID].benefit += ben;
 		DictListSort(0, dID, false);
-		if (DictListB[dID].benefit > 0xefff)
+		if (DictList[dID].benefit > 0xefff)
 			DictReBen();
 		return;
 	}
@@ -298,15 +279,41 @@ namespace acp
 	{
 		uint16_t want = DictSize_Max / 2;
 		DictSize_Cur -= want;
-		for (auto a = 0; a < 53; ++a)
-			DictJmp[a]->del(DictSize_Cur);
-#if DEBUG_Com
-		wchar_t db_str[120];
-		swprintf(db_str, L"DIC CLE: del=%d iFF=%s\n", want, isFirstFree ? L"true" : L"false");
-		db_log(1, db_str);
-#endif
-		if (isFirstFree)
-			isFirstFree = false;
+		DictTLT->set();
+		DictItem *dsrc;
+		DictIndex *disrc;
+		uint16_t dnum = 0;
+		//change page
+		if (isDicPage)
+		{
+			dsrc = DicA;
+			Diction = DicB;
+			disrc = DidxA;
+			DictIdx = DidxB;
+			isDicPage = false;
+		}
+		else
+		{
+			dsrc = DicB;
+			Diction = DicA;
+			disrc = DidxB;
+			DictIdx = DidxA;
+			isDicPage = true;
+		}
+		//clean dictjmp
+		for (uint8_t a = 0; a < 53; ++a)
+			DictJmp[a]->del();
+		//move data and make dictjmp
+		for (uint16_t a = 0; a < DictSize_Cur; ++a)
+		{
+			dnum = DictList[a].dnum;
+			Diction[a] = dsrc[dnum];
+			DictIdx[a] = disrc[dnum];
+			for (uint8_t b = 0; b < 53; ++b)
+				if (DictIdx[a].index[b] != 0x7f)
+					DictJmp[b]->add(DictList[a].size, a);
+		}
+		DictTLT->set();
 		return;
 	}
 
@@ -334,11 +341,11 @@ namespace acp
 		}
 		dic_jmp[0] = dic_jmp[1] = 0x7f;
 		int64_t tab = 0;
-		for (uint8_t a = 53; a--;)
+		/*for (uint8_t a = 53; a--;)
 		{
 			if (dicidx.index[a] != 0x7f)
 				tab += idxjudge[a];
-		}
+		}*/
 		return tab;
 	}
 
@@ -347,14 +354,12 @@ namespace acp
 		_mm_prefetch((char*)data, _MM_HINT_NTA);
 		if (DictSize_Cur == DictSize_Max)
 			DictClean();
-		if (isFirstFree)//fitst time, assign a addr
-		{
-			DictListB[DictSize_Cur].dnum = DictSize_Cur;
-		}
-		DictItem &dicdata = Diction[DictListB[DictSize_Cur].dnum];
-		_mm_prefetch((char*)&dicdata, _MM_HINT_T0);
-		DictListA[DictSize_Cur].tab = DictListB[DictSize_Cur].benefit = len;
-		//DictList[DictSize_Cur].oID = a_OnlyID++;
+		DictInfo &DicInfo = DictList[DictSize_Cur];
+		DicInfo.dnum = DictSize_Cur;
+		DicInfo.benefit = DicInfo.size = len;
+		DictItem &dicdata = Diction[DictSize_Cur];
+		//_mm_prefetch((char*)&dicdata, _MM_HINT_T0);
+
 #if DEBUG_Com
 		wchar_t db_str[120];
 		swprintf(db_str, L"DIC ADD: oID=%d len=%d\n", DictList[DictSize_Cur].oID, DictList[DictSize_Cur].len);
@@ -363,7 +368,7 @@ namespace acp
 		
 		memset(dicdata.L.data, 0, 64);
 		memcpy(dicdata.L.data, data, len);
-		DictListA[DictSize_Cur].tab += DictPre(dicdata, DictIdx[DictListB[DictSize_Cur].dnum], len);
+		DictPre(dicdata, DictIdx[DictSize_Cur], len);
 		DictListSort(0, DictSize_Cur);
 		++DictSize_Cur;
 		return;
@@ -374,12 +379,12 @@ namespace acp
 		if (dID >= DictSize_Cur)
 			return 0x1;
 		if (len & 0x80)//middle align, unknown len
-			len = DictListA[dID].size - (0xff - len) - offset;
+			len = DictList[dID].size - (0xff - len) - offset;
 		//else if (offset & 0x80)//right align, unknown offset
 			//offset = DictList[dID].len - len;
-		if (offset + len > DictListA[dID].size)
+		if (offset + len > DictList[dID].size)
 			return 0x2;
-		DictItem &dicdata = Diction[DictListB[dID].dnum];
+		DictItem &dicdata = Diction[DictList[dID].dnum];
 		memcpy(data, dicdata.L.data + offset, len);
 		DictUse(dID, len);
 		return 0x0;
@@ -389,15 +394,18 @@ namespace acp
 	{
 		ChkItem chkdata;
 		DictItem *dicdata;
-		DictInfoA *dicinfoa;
-		DictInfoB *dicinfob;
+		DictInfo *dicinfo;
 		DictIndex *dicidx;
 		uint8_t *dic_dat,
 			*dic_jmp;
 		uint64_t *p_dic_cur,//current pos of dic_data
 			*p_chk_cur;//current pos of chker_data
 		uint16_t dic_num_cur,
-			dic_num_next = 0;
+			dic_num_next = 0,
+			dbnum,
+			dbnum_next = 0;
+		uint8_t dic_size = 0,
+			dic_size_next = 0;
 		char *p_prefetch;//for prefetch
 		uint8_t findpos,
 			objpos,//object-bit pos in the dict
@@ -477,45 +485,31 @@ namespace acp
 					break;//get it
 				}
 			}*/
-			auto DJnext = [tNum, tID, chk_minval, &mypos]() -> uint16_t
+			dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next);
+			for (; dbnum_next < DictSize_Cur; dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next))
 			{
-				uint16_t *idx = DictJmp[chk_minval]->index;
-				_mm_prefetch((char*)(idx + mypos), _MM_HINT_T0);
-				for (; ++mypos < DictJmp[chk_minval]->size;)
-					if (idx[mypos] % tNum == tID)
-					{
-						return idx[mypos];
-					}
-				mypos = DictJmp[chk_minval]->size;
-				return 0xffff;
-			};
-			dic_num_next = DJnext();
-			for (; dic_num_next < DictSize_Cur; dic_num_next = DJnext())
-				//judge if len satisfy
-				if ((maxpos_next = DictListA[dic_num_next].size - chkdata.curlen) >= 0)
-				{
-				#if DEBUG_BUF_CHK
-					if (!tID)
-						db_log(2, L"get");
-				#endif
-					//prefetch next DictItem
-					p_prefetch = (char *)&Diction[DictListB[dic_num_next].dnum];//pos of next object DictItem
-					_mm_prefetch(p_prefetch, _MM_HINT_T0);//-data
-					p_prefetch = (char *)&DictIdx[DictListB[dic_num_next].dnum];//pos of the object DictIndex
-					_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
-					return;
-				}
+				dic_num_next = DictTLT->dID[dbnum_next];
+				maxpos_next = dic_size_next - chkdata.curlen;
+			#if DEBUG_BUF_CHK
+				if (!tID)
+					db_log(2, L"get");
+			#endif
+				//prefetch next DictItem
+				p_prefetch = (char *)&Diction[dbnum_next];//pos of next object DictItem
+				_mm_prefetch(p_prefetch, _MM_HINT_T0);//-data
+				p_prefetch = (char *)&DictIdx[dbnum_next].index[chk_minval];//pos of the object DictIndex
+				_mm_prefetch(p_prefetch, _MM_HINT_NTA);//-index
+				return;
+			}
 
 			dic_num_next = 0xffff;//end it
 		};
 		auto func_tonext = [&]
 		{
-			dicinfob = &DictListB[dic_num_cur = dic_num_next];
-			dicinfoa = &DictListA[dic_num_cur];
-			dicdata = &Diction[dicinfob->dnum];
-			dicidx = &DictIdx[dicinfob->dnum];
+			dicdata = &Diction[dbnum = dbnum_next];
+			dicidx = &DictIdx[dbnum];
 			maxpos = (int8_t)maxpos_next;
-			if (dicinfoa->size > 32)
+			if ((dic_size = dic_size_next) > 32)
 			{
 				dic_dat = dicdata->L.data;
 				dic_jmp = dicdata->L.jump;
@@ -533,33 +527,32 @@ namespace acp
 			//refresh chker
 			memcpy(&chkdata, inchk, sizeof(ChkItem));
 			//dic_num_next = dic_num_cur = tID * 8;
-			dic_num_next = dic_num_cur = DictJmp[chk_minval]->get(tID, mypos);
-			dic_add_idx = 0;
+			dbnum_next = DictJmp[chk_minval]->get(tID, mypos, dic_size_next);
+			if (dbnum_next == 0xffff)//no find
+				goto SIG_BACK;
 
 			func_tonext();
-
-			cmp_mask = idxjudge[chk_minval] + 0xff;
-			cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
+			//cmp_mask = idxjudge[chk_minval] + 0xff;
+			//cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
 
 			//prefetch current
 			p_prefetch = (char *)dicdata;//pos of the object DictItem
 			_mm_prefetch(p_prefetch, _MM_HINT_T0);//-data
-			_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//-jump
+			//_mm_prefetch(p_prefetch + 64, _MM_HINT_T0);//-jump
 			p_prefetch = (char *)dicidx;//pos of the object DictIndex
 			_mm_prefetch(p_prefetch + (chk_minval & 0xc0), _MM_HINT_NTA);//-index
 			
-			//judge cur dict
-			maxpos = dicinfoa->size - chkdata.curlen;
+			maxpos = dic_size - chkdata.curlen;
 			func_findnext();
 
-			while(dic_num_cur < DictSize_Cur)//loop when finish a DictItem,fail OR suc(add chk)
+			while(true)//loop when finish a DictItem,fail OR suc(add chk)
 			{
 				findpos = 0x7f;
 				//maxpos = dicinfo->len - chkdata.curlen;//max find pos(start) in the dict
 				//maxpos:changed ahead 
 				//objpos:must on-change
 				objpos = dicidx->index[chk_minval];//object-bit pos in the dict
-				if (objpos == 0x7f)//no matching word
+				/*if (objpos == 0x7f)//no matching word
 				{
 					if (dic_num_next == 0xffff)//no next
 						break;
@@ -567,7 +560,7 @@ namespace acp
 					func_tonext();
 					func_findnext();
 					continue;
-				}
+				}*/
 				while (objpos < chk_minpos)
 					objpos = dic_jmp[objpos];
 				//maxpos must < 64
@@ -575,7 +568,7 @@ namespace acp
 				//when objpos != 0x7f(<64) need to judge
 				if ((dicspos = objpos - chk_minpos) > maxpos)//no enough space to match word
 				{
-					if (dic_num_next == 0xffff)//no next
+					if (dbnum_next == 0xffff)//no next
 						break;
 
 					func_tonext();
@@ -625,16 +618,16 @@ namespace acp
 				{
 					dicrep.isFind = 0xff;
 					dicrep.addr = &dic_dat[findpos];
-					dicrep.dicID = dic_num_cur;
-					dicrep.diclen = dicinfoa->size;
+					dicrep.dicID = DictTLT->dID[dbnum];
+					dicrep.diclen = dic_size;
 					dicrep.offset = findpos;
 					dicrep.objlen = chkdata.curlen;
 					if (Chk_inc(chkdata) == 0)
 						break;//chkdata is full used
 					//add chk suc
-					DictJmp[chk_minval]->get(tID, dic_num_next, mypos);
-					cmp_mask = idxjudge[chk_minval] + 0xff;
-					cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
+					DictJmp[chk_minval]->chg(tID, dbnum_next, mypos);
+					//cmp_mask = idxjudge[chk_minval] + 0xff;
+					//cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
 					if (--maxpos_next < 0)//next fail
 						func_findnext();
 					if (--maxpos < 0)
@@ -658,7 +651,7 @@ namespace acp
 				}
 			}
 			//end of seaching the whole diction
-
+		SIG_BACK:
 			//send back signal to the control thread
 			a_FT_state -= mask;
 			lck.lock();
@@ -696,7 +689,7 @@ namespace acp
 		unique_lock <mutex> lck_FindThread(mtx_FindThread_Wait);
 		//init
 		for (auto a = 0; a < 53; ++a)
-			DictJmp[a]->tNum = tCount;
+			DictJmp[a]->init(DictSize_Max, tCount);
 		for (int8_t a = 0; a < tCount; a++)
 			t_find[a] = thread(FindThread_x64, tCount, a, ref(ftop), &chkdata, ref(drep[a]));
 
@@ -794,13 +787,14 @@ namespace acp
 		log_thr(L"DC0 noti M**\n");
 
 		lck_DictUse.unlock();
+		for (auto a = 0; a < 53; ++a)
+			DictJmp[a]->exit();
 		return;
 	}
 
 	uint8_t getDictLen(uint16_t dID)
 	{
-		DictInfoA &dinfoa = DictListA[dID];
-		return dinfoa.size;
+		return DictList[dID].size;
 	}
 
 
@@ -811,7 +805,7 @@ namespace acp
 		db_log(4, db_str);
 		for (auto a = 0; a < DictSize_Cur; ++a)
 		{
-			swprintf(db_str, L"@Dic%5d oID=%d len=%d ben=%d\n", a,0x0/*DictList[a].oID*/,DictListA[a].size,DictListB[a].benefit);
+			swprintf(db_str, L"@Dic%5d oID=%d len=%d ben=%d\n", a,0x0/*DictList[a].oID*/,DictList[a].size,DictList[a].benefit);
 			db_log(4, db_str);
 		}
 		db_dump(2, (uint8_t*)Diction, DictSize_Max*sizeof(DictItem));
