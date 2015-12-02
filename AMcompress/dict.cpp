@@ -42,9 +42,7 @@ namespace acp
 			tNum = t;
 			gap /= tNum;
 			for (uint8_t a = 0; a < tNum; ++a)
-			{
 				size[a] = 0;
-			}
 		}
 		~DictJump()
 		{
@@ -109,24 +107,27 @@ namespace acp
 	{
 	public:
 		uint16_t *dID;
+		uint16_t *forset;
 		TLT(uint16_t dsize)
 		{
 			dID = (uint16_t*)malloc_align(2 * dsize, 64);
+			forset = (uint16_t*)malloc_align(2 * dsize, 64);
+			for (uint16_t a = 0; a < dsize; ++a)
+				forset[a] = a;
 		}
-		~TLT() { free_align(dID); }
-		void add(uint16_t val)
+		~TLT() { free_align(dID); free_align(forset); }
+		inline void add(uint16_t val)
 		{
 			dID[DictSize_Cur] = val;
 			for (uint16_t a = 0; a < DictSize_Cur; ++a)
 				if (dID[a] >= val)
 					dID[a]++;
 		}
-		void set()
+		inline void set()
 		{
-			for (uint16_t a = 0; a < DictSize_Cur; ++a)
-				dID[a] = a;
+			memcpy(dID, forset, DictSize_Cur * 2);
 		}
-		void upd(uint16_t newval, uint16_t oldval)
+		inline void upd(uint16_t newval, uint16_t oldval)
 		{
 			for (uint16_t a = 0; a < DictSize_Cur; ++a)
 			{
@@ -462,28 +463,6 @@ namespace acp
 		//main part
 		auto func_findnext = [&]
 		{
-			//for (dic_num_next += dic_num_add[dic_add_idx++]; dic_num_next < DictSize_Cur; dic_num_next += dic_num_add[dic_add_idx++])
-			//for (; (dic_num_next += dic_num_add[dic_add_idx++]) < DictSize_Cur;)
-			/*for (; (dic_num_next += dic_num_add[(dic_add_idx++) & 0xf]) < DictSize_Cur;)
-			{
-			#if DEBUG_BUF_CHK
-				wchar_t db_str[64];
-				if (!tID)
-				{
-					swprintf(db_str, L"\ntry %d ", dic_num_next);
-					db_log(2, db_str);
-				}
-			#endif
-				//if (DictList[dic_num_next].tab&idxjudge[chk_minval])
-				//if ((DictListA[dic_num_next].tab << (chk_minval + 1)) < 0)
-				//judge if len satisfy
-					//if ((maxpos_next = DictListA[dic_num_next].size - chkdata.curlen) >= 0)
-				
-				if ((maxpos_next = (DictListA[dic_num_next].tab&cmp_mask) - cmp_obj) >= 0)
-				{
-					break;//get it
-				}
-			}*/
 			dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next);
 			for (; dbnum_next < DictSize_Cur; dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next))
 			{
@@ -499,7 +478,7 @@ namespace acp
 				_mm_prefetch(p_prefetch, _MM_HINT_NTA);//-index
 				return;
 			}
-
+			maxpos_next = -1;
 		};
 		auto func_tonext = [&]
 		{
@@ -529,8 +508,6 @@ namespace acp
 				goto SIG_BACK;
 
 			func_tonext();
-			//cmp_mask = idxjudge[chk_minval] + 0xff;
-			//cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
 
 			//prefetch current
 			p_prefetch = (char *)dicdata;//pos of the object DictItem
@@ -549,15 +526,7 @@ namespace acp
 				//maxpos:changed ahead 
 				//objpos:must on-change
 				objpos = dicidx->index[chk_minval];//object-bit pos in the dict
-				/*if (objpos == 0x7f)//no matching word
-				{
-					if (dic_num_next == 0xffff)//no next
-						break;
 
-					func_tonext();
-					func_findnext();
-					continue;
-				}*/
 				while (objpos < chk_minpos)
 					objpos = dic_jmp[objpos];
 				//maxpos must < 64
@@ -616,8 +585,6 @@ namespace acp
 					dicrep.isFind = 0xff;
 					dicrep.addr = &dic_dat[findpos];
 					dicrep.dicID = DictTLT->dID[dbnum];
-					if (DictList[dicrep.dicID].dnum != dbnum)
-						printf("change wrong\n");
 					dicrep.diclen = dic_size;
 					dicrep.offset = findpos;
 					dicrep.objlen = chkdata.curlen;
@@ -625,8 +592,6 @@ namespace acp
 						break;//chkdata is full used
 					//add chk suc
 					DictJmp[chk_minval]->chg(tID, dbnum_next, mypos);
-					//cmp_mask = idxjudge[chk_minval] + 0xff;
-					//cmp_obj = idxjudge[chk_minval] + chkdata.curlen;
 					if (--maxpos_next < 0)//next fail
 						func_findnext();
 					if (--maxpos < 0)
@@ -689,10 +654,7 @@ namespace acp
 		//init
 		isCompress = true;
 		for (auto a = 0; a < 53; ++a)
-		{
 			DictJmp[a]->init(tCount);
-			//printf("alloc %d at %llx\n", a, DictJmp[a]->index);
-		}
 		for (int8_t a = 0; a < tCount; a++)
 			t_find[a] = thread(FindThread_x64, tCount, a, ref(ftop), &chkdata, ref(drep[a]));
 
