@@ -6,8 +6,8 @@
 
 namespace acp
 {
-#define BLKSIZE 8192
-#define BLKMASK 0x1fff
+	const uint16_t BLKSIZE = 8192;
+	const uint16_t BLKMASK = 0x1fff;
 	struct alignas(64) BlockInfo
 	{
 		int16_t hash[832];
@@ -31,7 +31,7 @@ namespace acp
 		cv_Buf_Ready;
 	static condition_variable cv_FindThread_Wait,//cv to wake up find thread
 		cv_CtrlThread_Wait;//cv to wake up ctrl thread
-	static atomic_int64_t a_FT_state(0);
+	static atomic_uint64_t a_FT_state(0);
 	static atomic_int8_t //a_ThreadCount(0),
 		a_FindLen(0);
 	static atomic_int32_t a_LoopCount(0);
@@ -131,7 +131,7 @@ namespace acp
 		}
 
 		//fill this block
-		for (auto a = Buf_Pos_cur & BLKMASK; left_len--; ++a)
+		for (uint16_t a = Buf_Pos_cur & BLKMASK; left_len--; ++a)
 		{
 			//auto tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
 			//tmpdat += buffer[Buf_Pos_cur++];
@@ -156,7 +156,7 @@ namespace acp
 				left_len = right_len;
 				right_len = 0;
 			}
-			for (auto a = 0; a < left_len; ++a)
+			for (uint16_t a = 0; a < left_len; ++a)
 			{
 				//uint16_t tmpdat = (uint16_t)buffer[(int32_t)Buf_Pos_cur - 1] * 13 + buffer[(int32_t)Buf_Pos_cur - 2] * 169;
 				//tmpdat += buffer[Buf_Pos_cur++];

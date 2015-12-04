@@ -136,7 +136,7 @@ int wmain(int argc, wchar_t *argv[])
 
 	//parse command
 	setting.is_use_dict = true;
-	for (auto a = 0; a < p.size(); a++)
+	for (int8_t a = 0; a < p.size(); a++)
 	{
 		switch (p.com(a))
 		{

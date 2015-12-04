@@ -182,6 +182,7 @@ namespace acp
 		DictSize_Max = diccount;
 		DictSize_Cur = 0;
 		
+		memset(DictIdx, 0x7f, sizeof(DictIndex)*diccount);
 		for (auto a = 0; a < 53; ++a)
 			DictJmp[a] = new DictJump(diccount);
 
@@ -339,6 +340,7 @@ namespace acp
 						DictJmp[b]->add(DictList[a].size, a);
 			}
 		}
+		memset(&DictIdx[DictSize_Cur], 0x7f, sizeof(DictIndex)*(DictSize_Max - DictSize_Cur));
 		return;
 	}
 
@@ -356,7 +358,7 @@ namespace acp
 			dic_dat = dicdata.S.data;
 			dic_jmp = dicdata.S.jump;
 		}
-		memset(dicidx.index, 0x7f, sizeof(DictIndex));
+		//memset(dicidx.index, 0x7f, sizeof(DictIndex));
 		for (uint8_t a = len - 1; a > 1;--a)
 		{
 			auto tmp = hash(&dic_dat[a]);
@@ -469,8 +471,7 @@ namespace acp
 		//main part
 		auto func_findnext = [&]
 		{
-			dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next);
-			for (; dbnum_next < DictSize_Cur; dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next))
+			if ((dbnum_next = DictJmp[chk_minval]->next(tID, chkdata.curlen, mypos, dic_size_next)) < DictSize_Cur)
 			{
 				maxpos_next = dic_size_next - chkdata.curlen;
 			#if DEBUG_BUF_CHK
@@ -506,6 +507,7 @@ namespace acp
 
 		while (true)//run one cycle at a FindInDict
 		{
+			dicrep.objlen = dicrep.isFind = 0;
 			//refresh chker
 			memcpy(&chkdata, inchk, sizeof(ChkItem));
 			//dic_num_next = dic_num_cur = tID * 8;
@@ -627,8 +629,8 @@ namespace acp
 			lck.lock();
 			log_thr(msg[2]);
 
-			if (dicrep.isFind && FindLen < dicrep.objlen)
-				FindLen = dicrep.objlen;
+			//if (dicrep.isFind && FindLen < dicrep.objlen)
+				//FindLen = dicrep.objlen;
 			log_thr(msg[4]);
 
 			cv_CtrlThread_Wait.notify_all();
@@ -686,12 +688,12 @@ namespace acp
 		cv_Dict_Use.wait(lck_DictUse, [&] {return op.op != 0; });
 		log_thr(L"DC0 wa<- M**\n");
 
+		for (int8_t a = 0; a < tCount; a++)
+			drep[a].isFind = 0;
+
 		//start into the main part
 		while (true)
 		{
-			for (int8_t a = 0; a < tCount; a++)
-				drep[a].isFind = 0;
-			FindLen = 0;
 			ftop = 0;
 			a_FT_state = 0xffffffffffffffffUi64;
 
@@ -703,8 +705,13 @@ namespace acp
 			log_thr(L"DC0 wa<- DTa\n");
 
 			//waked up from find-thread
-
-			op.findlen = FindLen;
+			op.findlen = 3;
+			for (int8_t a = 0; a < tCount; a++)
+			{
+				if (drep[a].isFind && drep[a].objlen > op.findlen)
+					op.findlen = drep[a].objlen;
+			}
+			//op.findlen = FindLen;
 			op.op = 0x7f;
 
 			cv_Dict_Ready.notify_all();

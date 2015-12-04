@@ -4,7 +4,7 @@ namespace acp
 {
 	struct ProgressInfo
 	{
-		_CRT_ALIGN(16) uint64_t inlen = 0L,
+		uint64_t inlen = 0L,
 			outlen = 0L,
 			innow = 0L,
 			outnow = 0L;

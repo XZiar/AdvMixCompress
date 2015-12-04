@@ -45,7 +45,6 @@ namespace acp
 		if (chkdat.curlen == chkdat.limit)//cannot increase
 			return 0;
 		
-		uint8_t dat = chkdat.data[chkdat.curlen];
 		auto tmp = hash(&chkdat.data[chkdat.curlen]);
 		chkdat.list[chkdat.curlen] = tmp + ((uint16_t)chkdat.curlen << 10);
 		Chksort(chkdat, chkdat.curlen);
