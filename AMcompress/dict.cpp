@@ -48,10 +48,16 @@ namespace acp
 		{
 			delete index;
 		}
-		inline void add(const uint8_t dsize, uint16_t ival = 0xffff)
+		inline void add(const uint8_t dsize)
 		{
-			uint16_t val;
-			val = (ival == (uint16_t)0xffff ? DictSize_Cur : ival);
+			uint8_t tId = DictSize_Cur%tNum;
+			Jump &obj = index[tId * gap + size[tId]];
+			size[tId]++;
+			obj.index = DictSize_Cur;
+			obj.size = dsize;
+		}
+		inline void add(const uint8_t dsize, uint16_t val)
+		{
 			uint8_t tId = val%tNum;
 			Jump &obj = index[tId * gap + size[tId]];
 			size[tId]++;
@@ -78,10 +84,10 @@ namespace acp
 			int16_t left = 0,//left border
 				right = size[id] - 1,//right border
 				mid = (left + right) / 2;//middle pos
-			uint16_t base = id * gap;
+			Jump *obj = &index[id * gap];
 			while (left <= right)
 			{
-				if (did > index[base + mid].index)
+				if (did > obj[pos].index)
 					left = mid + 1;
 				else
 					right = mid - 1;
@@ -92,12 +98,12 @@ namespace acp
 		}
 		inline uint16_t next(const uint8_t id, const uint8_t dsize, int16_t &pos, uint8_t &outsize)
 		{
-			uint16_t base = id * gap;
+			Jump *obj = &index[id * gap];
 			for (; ++pos < size[id];)
-				if (index[base + pos].size >= dsize)
+				if (obj[pos].size >= dsize)
 				{
-					outsize = index[base + pos].size;
-					return index[base + pos].index;
+					outsize = obj[pos].size;
+					return obj[pos].index;
 				}
 			return 0xffff;
 		}
